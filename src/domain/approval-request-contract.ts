@@ -34,4 +34,5 @@ export type DashboardApiErrorCode =
   | 'summary_not_approvable'
   | 'invalid_provider_response'
   | 'unavailable'
-  | 'not_found';
+  | 'not_found'
+  | 'internal_error';

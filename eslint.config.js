@@ -29,6 +29,12 @@ export default defineConfig(
     rules: {
       eqeqeq: ['error', 'always'],
       '@typescript-eslint/consistent-type-imports': 'error',
+      // A leading underscore marks a parameter that must exist for its signature (e.g. Express's
+      // four-argument error handler) but is intentionally unused.
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+      ],
       // The summary panel is a state machine: every state must be handled explicitly.
       '@typescript-eslint/switch-exhaustiveness-check': 'error',
     },
