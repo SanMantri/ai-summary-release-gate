@@ -515,12 +515,10 @@ All layers run in parallel (decision 23): one red run shows every layer's verdic
 
 A change cannot be released if any of the following is true:
 
-1. Type errors, lint errors, or formatting violations.
-2. Any developer unit test fails.
-3. Any API test fails (contract, error mapping, or approval enforcement).
-4. Any UI or smoke test fails on Chromium, **or passes only on retry** (flaky).
-5. Any evaluation example disagrees with its human label (false accepts reported first).
-6. A test is focused (`.only`) or skipped.
+1. Type, lint or formatting errors.
+2. Any unit, API, UI or smoke test fails, **or passes only on retry** (flaky).
+3. Any evaluation example disagrees with its human label (false accepts reported first).
+4. A test is focused (`.only`) or skipped.
 
 Every job blocks; there are no advisory jobs (decisions 24, 25, 28). UI runs on Chromium only.
 

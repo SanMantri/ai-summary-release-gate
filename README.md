@@ -114,19 +114,12 @@ Expected result: the run stops at the unit tests. To see every layer's verdict, 
 
 A change can't be released if any of these is true:
 
-1. There are type errors, lint errors or formatting violations.
-2. Any developer unit test fails.
-3. Any API test fails: response contract, error mapping or approval enforcement.
-4. Any UI or smoke test fails on Chromium, **or passes only on retry**. A test that passes only on retry is flaky, and flaky tests block.
-5. Any evaluation example disagrees with its human label. False accepts, where a bad summary passed, are reported first.
-6. A test is focused (`.only`) or skipped.
+1. There are type, lint or formatting errors.
+2. Any unit, API, UI or smoke test fails, **or passes only on retry**. Every outside service is faked, so a flaky test is a real bug.
+3. Any evaluation example disagrees with its human label.
+4. A test is focused (`.only`) or skipped.
 
-Every job in the workflow blocks; there are no advisory jobs. The UI runs in Chromium only. The risks the gate guards are citation and approval-state logic, which don't change between browser engines, so extra browsers would add CI time without adding protection.
-
-How the workflow enforces this:
-- **One required check.** A ruleset on `main` requires `release-gate` and nothing else, so the job list can change without touching branch protection. Changes reach `main` through a pull request; deletion and force pushes are blocked. `release-gate` always runs, and it fails unless every blocking job *succeeded*. This closes a common hole: GitHub skips the jobs after a failed job, and a skipped required check counts as passing.
-- **Flaky tests.** In CI each test gets one retry plus `failOnFlakyTests`. The retry only classifies the failure (flaky, or failing every time) and records a second trace. Every outside service is faked, so flakiness signals a real bug.
-- **No skipped tests.** The linter forbids `.only`, `test.skip` and `test.fixme`, and CI forbids `.only`. A flaky test is fixed, or deleted with an issue linked; it is never quietly switched off.
+All four CI jobs block. A ruleset on `main` requires one check, `release-gate`. It runs even when other jobs fail (`if: always()`) and passes only if every job *succeeded*, so a skipped job can't open the gate.
 
 ## Where the line is drawn between test layers
 
@@ -144,41 +137,14 @@ The test catalog is in [`plan.md` §5](plan.md#5-test-catalog). Each test's cata
 
 ## The summary evaluation
 
-`eval/` has 5 synthetic tickets and 20 labeled model outputs. Two deterministic checks run on each output:
+`eval/` scores 20 labeled model outputs for 5 synthetic tickets with two deterministic checks:
 
-- **`source-attribution`:** at least one citation, and every cited message belongs to this ticket. Findings separate a citation from another ticket (a cross-customer data leak) from an ID that exists nowhere (an invented ID).
-- **`grounded-specifics`:** the one additional risk. Citations show *where* a claim came from, not *whether it is true*. Every concrete fact in the summary must appear, after normalization, in a **cited** message: money amounts, order or reference numbers, dates, email addresses, phone numbers and percentages. For example, `$49` matches `49.00 USD`, and `March 2, 2026` matches `2026-03-02`. This catches "cites the right message, invents the refund amount".
+- **`source-attribution`:** at least one citation, and every cited message belongs to this ticket.
+- **`grounded-specifics`** (the additional risk): every concrete fact (amount, order number, date, email, phone) must appear in a **cited** message after normalization, so `$49` matches `49.00 USD`. This catches "cites the right message, invents the refund amount".
 
-How the examples are scored:
-- **Each example is one test.** The test compares the *exact set* of failed checks with the human label. That catches false accepts, false rejects, and the right verdict for the wrong reason.
-- **Two known blind spots are kept in the dataset:**
-  - a prompt-injected refund amount that appears in the customer's own message
-  - a summary that says "approved" when the agent said "denied"
+Each example is one test and must fail exactly the checks a human expected. Two known blind spots, an injected amount that really is in the source and "approved" where the agent said "denied", are reported but don't block. `eval/` can't import product code, so a product bug can't pass its own evaluation.
 
-  They're reported but don't block a release. If a future check starts catching one, its test fails and asks you to relabel it.
-- **Separation from product code is enforced.** ESLint forbids `eval/` from importing product code, so a product bug can't pass its own evaluation.
-- **Results show up on the run page.** A score table goes to the GitHub Actions job summary and to `release-gate-evidence/summary-evaluation-scorecard.{md,json}`.
-
-**What these checks establish:** citations are valid and stay within the ticket, and concrete facts with digits can be traced to cited text. The checks are themselves verified against human labels, including the known misses.
-
-**What they don't establish:**
-- that a reworded summary is faithful to the ticket
-- that the summary is complete
-- tone
-- whether the model follows an injected instruction when the injected values are already in the source
-- reversed meaning
-- whether `insufficient_information` is used at the right times
-- response time, cost, or behavior across repeated runs of a real model
-
-**What I'd test separately against a live model:**
-- pass rates over many generations per ticket, with confidence thresholds
-- a second model grading faithfulness and completeness, calibrated against human labels first
-- sets of hard cases: injection, long threads, other languages, personal data
-- comparing the current and candidate model or prompt on every change
-- p95 response time and timeout rate against the UI's 15-second limit
-- cost per summary
-
-These would run nightly and on every model or prompt change, not on every pull request. Details are in [`docs/test-strategy.md`](docs/test-strategy.md#what-to-test-against-a-live-model).
+**What the checks don't establish:** that reworded text is faithful, complete or correct in meaning. **Against a live model** I'd add pass rates over many generations, a second model grading faithfulness (calibrated on human labels), hard cases such as injection, long threads and personal data, and response time and cost, run on every model or prompt change. Details are in [`docs/test-strategy.md`](docs/test-strategy.md#the-summary-evaluation).
 
 ## Investigating a red gate
 
@@ -190,25 +156,12 @@ These would run nightly and on every model or prompt change, not on every pull r
 
 ## What I'd add next
 
-- **The edge-case tests cut to keep this suite minimal.** The dashboard already handles these; the tests would prove it:
-  - a late summary from the previous ticket after switching tickets
-  - a double click sending only one request
-  - the 15-second client timeout
-  - broken responses (HTTP 500, unreadable JSON, dropped connection)
-  - a failed approval, and regenerating after a valid summary
-  - markup in model output shown as text
-  - API error mapping (provider crash or timeout → 503, broken output → 502) and two simultaneous approvals
-- **A gate self-test:** a CI job that applies the intentional regression and fails unless exactly the expected tests catch it, so nobody can silently weaken them.
-- **A live-model evaluation lane:** the same checks with pass-rate thresholds, plus a second model grading faithfulness and completeness.
-- **Approval by `generationId`:** the server keeps a record of each generation, so edited text can't be approved, plus an audit trail.
-- **Dedicated checks** for personal data and for obeying prompt injections.
-- **`grounded-specifics` in production in observe-only mode.** It would measure how often it wrongly flags good summaries before anyone considers blocking on it.
-- **Accessibility scans** (axe), advisory at first and blocking later.
-- **Contract tests against the real summary service,** checking it meets what the dashboard expects.
-- **Screenshot comparison** of the summary panel's states.
-- **Running the suite in parallel shards** with merged reports as it grows.
-- **Mutation testing** of the domain rules.
-- **Production monitoring:** approval rate, regenerate rate, invalid-citation rate.
+- **The edge-case tests cut to keep the suite minimal:** a late answer after switching tickets, double clicks, the 15-second timeout, broken responses, markup in model output, and API error mapping.
+- **A gate self-test:** a CI job that fails unless the intentional regression is caught by exactly the expected tests.
+- **A live-model evaluation lane,** as described above.
+- **Approval tied to a server-side `generationId`,** with an audit trail.
+- **Accessibility scans and contract tests** against the real summary service.
+- **Production monitoring:** approval, regenerate and invalid-citation rates.
 
 ## Project structure
 
