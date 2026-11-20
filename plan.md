@@ -704,6 +704,7 @@ Each phase ends with a commit (Conventional Commits) and its exit criteria met. 
 | 27 | No gate self-test job | Decided on review: the exercise asks to document an intentional regression, which the patch, npm scripts, demo PR and `inject_regression` run already do; the self-test was extra rigour at extra cost |
 | 28 | No quarantine job or project | Decided on review: it ran zero tests and was the most expensive job; the policy is now "never skip: fix, or delete with an issue" |
 | 29 | First CI job renamed `developer-checks` → `static-checks-and-unit-tests` | The name says what fails when it is red |
+| 30 | CI installs only the Chromium browser (`npx playwright install chromium`), not its OS packages | `ubuntu-latest` already ships Chrome's system libraries; `--with-deps` re-installed them from the Ubuntu apt mirror, which once ran at 43 kB/s and stretched `ui-tests` from ~1 min to 9 min 21 s |
 
 ---
 
