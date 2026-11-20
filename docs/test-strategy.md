@@ -17,26 +17,20 @@ Everything below is arranged so these failures are caught at the cheapest layer 
 | Layer | Question it answers | Why it lives here |
 |---|---|---|
 | Developer unit (Vitest) | Is the citation rule right for every input? | Pure logic: running every combination here takes milliseconds |
-| API (Playwright, no browser) | Does the server enforce the rule, whatever the client sends? | A disabled button can be bypassed with a `POST`. The API is the actual control, so every invalid combination is tested there |
-| UI (Playwright + Chromium, AI service faked in the browser) | Does the agent see the right state and only get the right actions? | Only a browser can show button state, timing, late responses and rendering. Combinations aren't repeated here |
+| API (Playwright, no browser) | Does the server enforce the rule, whatever the client sends? | A disabled button can be bypassed with a `POST`. The API is the actual control, so the two invalid cases the exercise names are tested there; the other combinations are unit-tested |
+| UI (Playwright + Chromium, AI service faked in the browser) | Does the agent see the right state and only get the right actions? | Only a browser can show what is displayed and whether Approve is enabled. Combinations aren't repeated here |
 | Smoke (nothing faked in the browser) | Does the real UI → API → AI service path work? | Browser-level fakes would hide a URL or payload mismatch between UI and API |
 | Evaluation (no browser) | Do our quality checks classify model outputs the way a human would? | Model quality is a property of outputs, not of the UI |
 
-UI tests fake the summary service with `page.route` at the boundary the browser actually crosses. That gives each test exact control over sequences (503, then 200), held responses and dropped connections. Every on-contract fake response is validated with the dashboard's own Zod parser, so the fakes can't drift into shapes the real service never sends. The smoke tests cover what faking in the browser can't: the integration itself.
+UI tests fake the summary service with `page.route` at the boundary the browser actually crosses. That gives each test exact control over the sequence of answers, such as 503 and then 200. Every on-contract fake response is validated with the dashboard's own Zod parser, so the fakes can't drift into shapes the real service never sends. The smoke tests cover what faking in the browser can't: the integration itself.
 
 ## Determinism and parallel safety
 
 - **Each test owns its data.** Tickets are created through a test-seeding endpoint that exists only when `ENABLE_TEST_SEEDING=1`, with server-assigned UUIDs, so no two tests share a ticket.
 - **Browser fakes are per test.** They live in each test's own browser context. The fake AI service's state on the server, such as retry counters, is keyed by ticket ID.
-- **There are no fixed waits.** Races are reproduced deliberately, not hoped for:
-  - responses are held and released by the test
-  - the 15-second client timeout runs on a **paused** `page.clock`, so the boundary at 14 999 ms vs 15 000 ms is exact
-- **The mock queue is strict.** A request with no queued answer fails the test, which is how double submission is caught.
-- **It's proven, not assumed:**
-  - CI runs 4 workers with `fullyParallel`
-  - the nightly job repeats the suite 10 times on 6 workers
-  - every phase was checked with `--repeat-each=5`
-  - API-APR-06 sends two approvals of the same ticket at the same moment and expects exactly one `200` and one `409`
+- **There are no fixed waits.** Only Playwright's auto-retrying assertions, enforced by the linter.
+- **The mock queue is strict.** A request with no queued answer fails the test, so an accidental extra request can never go unnoticed.
+- **It's proven, not assumed:** CI runs 4 workers with `fullyParallel`, and every suite was checked with `--repeat-each=5` while it was built.
 
 ## Do the tests actually catch what they claim?
 
@@ -45,17 +39,16 @@ Each important test was checked by deliberately breaking the code ("mutation pro
 | Code broken on purpose | Tests that caught it |
 |---|---|
 | Citation rule `every` → `some` | DEV-01, API-APR-02, UI-05 (exactly these; the evaluation stays green) |
-| Removing the late-response protection in the summary panel | UI-06, on every repetition |
 | Grounding against the whole ticket instead of only cited messages | The `specific-from-uncited-message` evaluation example, reported as a false accept |
 | `eval/` importing product code | ESLint (`no-restricted-imports`) |
 
-The first row is permanent: the `gate-self-test` CI job re-checks it on every run, so the gate's ability to catch the regression is itself tested.
+The first row is the documented intentional regression: `npm run regression:apply`, pull request #1 and the manual **inject_regression** run all reproduce it.
 
 ## Flakiness policy
 
 - **Retries:** none locally. In CI, one retry plus `failOnFlakyTests`.
 - **Why a pass-on-retry still blocks:** every outside service is faked, so a test that passes only on retry is a real defect, usually a race in the UI. The retry exists only to classify the failure and capture a second trace.
-- **Quarantine is explicit:** tag the test `@quarantined` and link an issue. It then runs in an advisory job instead of the gate, and is never silently skipped. The linter forbids `test.skip` and `test.fixme` in gated folders.
+- **No skipped tests:** the linter forbids `test.skip`, `test.fixme` and `.only`. A flaky test is fixed, or deleted with an issue linked; it is never quietly switched off.
 
 ## The summary evaluation
 

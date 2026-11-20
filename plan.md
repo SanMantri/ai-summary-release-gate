@@ -17,8 +17,8 @@ Every phase was validated locally and by a green CI run before the next one star
 | 5 API suite | 23 tests; 115/115 under `--repeat-each=5 --workers=8`; probe fails exactly API-APR-02 (mixed) | — |
 | 6 UI + smoke | 19 tests; 95/95 under `--repeat-each=5 --workers=8`; probes: `every → some` fails exactly UI-05, removing the stale-response guard fails UI-06 every time | UI-10 boundary check exposed that an installed clock keeps flowing → clock is now paused before the click |
 | 7 Evaluation | 29 tests; product regression leaves eval green; a grounding-check bug surfaces as a false accept; importing `src/` from `eval/` fails lint | — |
-| 8 CI gate | All blocking + advisory jobs green on Linux; nightly stress (10× repeat, 6 workers) green | Firefox/WebKit advisory jobs were built and passed in CI, then removed on review (decision 24) |
-| 9 Regression | Gate self-test verified locally and in CI; demo PR and manual `inject_regression` run are red for the expected reasons | The self-test exposed Vitest truncating interpolated test names → `taskTitleValueFormatTruncate: 0`. The first demo-PR run showed chained jobs hiding later layers' verdicts → decision 23 |
+| 8 CI gate | All blocking + advisory jobs green on Linux; nightly stress (10× repeat, 6 workers) green | Firefox/WebKit advisory jobs and the nightly stress workflow were built and passed in CI, then removed on review (decisions 24–25) |
+| 9 Regression | Gate self-test verified locally and in CI (later removed, decision 27); demo PR and manual `inject_regression` run are red for the expected reasons | The self-test exposed Vitest truncating interpolated test names → `taskTitleValueFormatTruncate: 0`. The first demo-PR run showed chained jobs hiding later layers' verdicts → decision 23 |
 | 10 Documentation | README and `docs/test-strategy.md`; fresh-clone walkthrough | — |
 > GitHub repository (to be created): `ai-summary-release-gate`
 
@@ -70,7 +70,7 @@ Every phase was validated locally and by a green CI run before the next one star
 | Missing or cross-ticket citations stay ineligible for approval | UI-05, UI-08, API-APR-02, DEV-01 |
 | Summary wording can vary | No assertion depends on summary wording; eval checks are property-based (§6) |
 | Reusable fixtures | `tests/support/*` (§4.4) |
-| Safe to run in parallel | Per-test tickets, per-context route mocks, nightly stress run (§4.6) |
+| Safe to run in parallel | Per-test tickets, per-context route mocks, `fullyParallel` with 4 CI workers (§4.6) |
 | Show the line between UI and service/evaluation checks | Layer map (§4.1), Playwright projects (§4.3), `docs/test-strategy.md` |
 | Deterministic eval with acceptable and unacceptable synthetic examples | `eval/` (§6) |
 | Source attribution + one additional risk | `source-attribution` + `grounded-specifics` checks (§6.1) |
@@ -266,7 +266,7 @@ Rules:
 ├─ regressions/ citation-rule-some-instead-of-every.patch
 ├─ .github/
 │  ├─ actions/setup-project/action.yml
-│  └─ workflows/ release-gate.yml, nightly-advisory.yml
+│  └─ workflows/ release-gate.yml
 ├─ docs/test-strategy.md
 ├─ playwright.config.ts, vitest.config.ts, vite.config.ts, tsconfig.json, eslint.config.js
 ├─ .nvmrc, .prettierrc, .gitignore, package.json
@@ -282,9 +282,8 @@ Rules:
 | `ui-chromium` | `tests/ui/**/*.ui.spec.ts` | Chromium | blocking |
 | `smoke-chromium` | `tests/smoke/**/*.smoke.spec.ts` | Chromium | blocking |
 | `eval` | `eval/**/*.eval.spec.ts` | none | blocking |
-| `quarantined` | any test tagged `@quarantined` | Chromium | advisory |
 
-All blocking projects use `grepInvert: /@quarantined/`. The `webServer` (built UI + API with `ENABLE_TEST_SEEDING=1`, `PROVIDER_TIMEOUT_MS=300`) starts for every project except an eval-only run.
+All projects block a release (decisions 27–28 removed the advisory ones). The `webServer` (built UI + API with `ENABLE_TEST_SEEDING=1`, `PROVIDER_TIMEOUT_MS=300`) starts for every project except an eval-only run.
 
 ### 4.4 Fixtures and helpers (`tests/support/`)
 
@@ -351,7 +350,7 @@ insufficientInformationNotice · approvalErrorAlert · approvedNotice
 - `fullyParallel: true`; each test creates its own tickets with server-assigned unique IDs.
 - Route mocks live in each test's own browser context.
 - Fake provider state is keyed by ticket ID; the only shared data is read-only.
-- **Proof:** CI runs with multiple workers; the nightly advisory run uses `--repeat-each=10 --workers=100%`; the concurrent-approval API test (API-APR-06) asserts the server's own race behaviour.
+- **Proof:** CI runs with 4 workers and `fullyParallel`; each suite was stress-tested with `--repeat-each=5` while it was built. (A nightly stress workflow was removed on review, decision 25.)
 
 ---
 
@@ -369,40 +368,31 @@ insufficientInformationNotice · approvalErrorAlert · approvedNotice
 
 ### 5.2 API tests (`api` project)
 
+Minimal set, decided on review (decision 26): the exercise's three responses at the service boundary, plus server-side enforcement of the two invalid-citation cases the exercise names. Every other citation combination is covered by DEV-01.
+
 | ID | Title | Expected |
 |---|---|---|
 | API-SUM-01 | returns a contract-valid summary whose citations belong to the ticket | `200`, Zod-valid, `sourceIds ⊆ messageIds` |
-| API-SUM-02 | returns insufficient information when the provider cannot summarise | `200 { status: "insufficient_information" }` |
-| API-SUM-03 | returns unavailable when the provider is down | `503 { error: "unavailable" }` |
-| API-SUM-04 | recovers on the next request after the provider was unavailable | `503`, then `200` valid |
-| API-SUM-05 | maps a provider crash or timeout to unavailable *(parametrised: `provider_error`, `provider_timeout`)* | `503 unavailable` |
-| API-SUM-06 | rejects provider output that breaks the contract | `502 invalid_provider_response` |
-| API-SUM-07 | returns not found for an unknown ticket | `404 ticket_not_found` |
+| API-SUM-02 | returns insufficient information when the provider cannot summarise the ticket | `200 { status: "insufficient_information" }` |
+| API-SUM-03 | returns unavailable, then recovers on the next request | `503 { error: "unavailable" }`, then `200` valid |
 | API-APR-01 | approves a summary with valid citations and persists the approval | `200`; `GET` ticket shows `approvedSummary` |
-| API-APR-02 | refuses to approve a summary with invalid citations *(parametrised: empty list, missing field, only another ticket's IDs, valid + another ticket's ID, unknown ID)* | `422 summary_not_approvable` with the exact `reasons` |
-| API-APR-03 | rejects a malformed approval request *(parametrised: non-array `sourceIds`, missing/empty `summary`, unreadable JSON)* | `400 invalid_payload` |
-| API-APR-04 | returns not found when approving an unknown ticket | `404 ticket_not_found` |
-| API-APR-05 | refuses a second approval of the same ticket | `409 already_approved` |
-| API-APR-06 | lets exactly one of two simultaneous approvals succeed | one `200`, one `409` |
-| API-TKT-01 | returns a ticket with its messages | `200`, Zod-valid ticket |
-| API-TKT-02 | returns not found for an unknown ticket | `404 ticket_not_found` |
+| API-APR-02 | refuses to approve a summary citing *{no messages, a valid message plus another ticket's message}* | `422 summary_not_approvable` with the exact `reasons`; ticket stays unapproved |
+
+Cut on review (17 tests): provider crash/timeout → 503, broken provider output → 502, unknown ticket → 404, three further invalid-citation combinations, malformed requests → 400, second approval → 409, simultaneous approvals, ticket read-back. The server still implements all of these; they are listed in the README under "What I'd add next".
 
 ### 5.3 UI tests (`ui-chromium` project)
 
+Minimal set, decided on review (decision 26): exactly the behaviour the exercise specifies.
+
 | ID | File | Title | Key assertions |
 |---|---|---|---|
-| UI-01 | summary-generation | shows a valid summary with its citations and lets the agent approve it | Summary + citation links visible; Approve enabled; after approval "Summary approved", controls gone |
-| UI-02 | summary-generation | shows the insufficient-information notice and keeps approval disabled | Notice visible; Approve disabled; Regenerate offered |
-| UI-03 | summary-error-recovery | recovers from an unavailable service when the retry returns a valid summary | Error + Retry; after retry Approve enabled; exactly 2 requests, both for this ticket |
-| UI-04 | summary-error-recovery | keeps approval disabled when the retry returns *{503 again, insufficient information, invalid citations}* | Approve disabled after each retry outcome |
-| UI-05 | summary-citation-blocking | blocks approval when the summary *{cites no messages, cites a message from another ticket alongside a valid one}* | Warning names the problem / offending ID; Approve disabled |
-| UI-06 | summary-request-timing | does not show a late summary from the previous ticket after switching tickets | Ticket A response held, switch to B, release A → nothing from A on B |
-| UI-07 | summary-request-timing | sends one summary request while generation is in progress | Generate disabled while pending; double-click → 1 request |
-| UI-08 | summary-citation-blocking | re-checks citations on every regeneration instead of remembering the last result | Valid (Approve enabled) → Regenerate → invalid → Approve disabled |
-| UI-09 | summary-error-recovery | offers a retry when the summary service returns *{HTTP 500, unreadable JSON, a dropped connection}* | Error + Retry; Approve disabled |
-| UI-10 | summary-error-recovery | offers a retry when the summary service does not respond in time | `page.clock` fast-forwards 15 s; error + Retry; no real waiting |
-| UI-11 | summary-generation | keeps the summary unapproved and lets the agent try again when approval fails | Approve `500` → alert; no "approved"; Approve enabled again |
-| UI-12 | summary-output-safety | renders summary text literally instead of executing markup from the model *(§13, item 4)* | Markup visible as text; no `<img>` element created; no dialog/console error |
+| UI-01 | summary-generation | shows a valid summary with its citations and lets the agent approve it | Summary + citation link visible; Approve enabled; after approval "Summary approved" |
+| UI-02 | summary-generation | shows the insufficient-information notice and keeps approval disabled | Notice visible; no summary; Approve disabled |
+| UI-03 | summary-error-recovery | recovers from an unavailable service when the retry returns a valid summary | Error + Retry; after retry Approve enabled; exactly 2 requests for this ticket |
+| UI-04 | summary-error-recovery | keeps approval disabled when the retry returns a summary citing another ticket | Citation warning; Approve disabled |
+| UI-05 | summary-citation-blocking | blocks approval when the summary cites *{no messages, a message from another ticket alongside a valid one}* | Warning names the problem / offending ID; Approve disabled |
+
+Cut on review (11 tests): late response after a ticket switch, double click, regenerate re-checks citations, broken responses (×3), client timeout, approval failure, markup in model output, and two further retry outcomes. The dashboard still implements all of these; they are listed in the README under "What I'd add next".
 
 ### 5.4 Smoke tests (`smoke-chromium` project, nothing faked in the browser)
 
@@ -503,26 +493,21 @@ The `SummaryProvider` seam is where a live provider plugs in; the eval checks ar
 Triggers: `pull_request`, `push` to `main`, `workflow_dispatch` with input `inject_regression` (boolean).
 
 ```
-developer-checks (typecheck, lint, format, Vitest, UI build) ──┐
-api-tests ─────────────────────────────────────────────────────┤
-ui-tests (+ smoke) ────────────────────────────────────────────┼─▶ release-gate   ← the single required check
-summary-evaluation ────────────────────────────────────────────┤
-gate-self-test ────────────────────────────────────────────────┘
-
-quarantined-tests  ─ advisory: continue-on-error, not a dependency of release-gate
+static-checks-and-unit-tests ─┐
+api-tests ────────────────────┤
+ui-tests (6 UI + 2 smoke) ────┼─▶ release-gate   ← the single required check
+summary-evaluation ───────────┘
 ```
 
 All layers run in parallel (decision 23): one red run shows every layer's verdict.
 
 | Job | Runs | Blocks a release |
 |---|---|---|
-| `developer-checks` | `tsc --noEmit`, ESLint, Prettier check, Vitest, Vite build | yes |
+| `static-checks-and-unit-tests` | `tsc --noEmit`, ESLint, Prettier check, Vitest, Vite build | yes |
 | `api-tests` | `--project=api` | yes |
 | `ui-tests` | `--project=ui-chromium --project=smoke-chromium` | yes |
 | `summary-evaluation` | `--project=eval` | yes |
-| `gate-self-test` | applies the regression patch and verifies the expected tests fail (§8) | yes |
 | `release-gate` | `if: always()`; fails unless every dependency's result is `success` | **the required check** |
-| `quarantined-tests` | `--project=quarantined` | no (advisory) |
 
 **Why the aggregator uses `if: always()`:** when a job fails, GitHub skips its dependents, and a skipped required check counts as passing. The aggregator inspects `needs.*.result` explicitly so a skip can never open the gate.
 
@@ -537,16 +522,15 @@ A change cannot be released if any of the following is true:
 3. Any API test fails (contract, error mapping, or approval enforcement).
 4. Any UI or smoke test fails on Chromium, **or passes only on retry** (flaky).
 5. Any evaluation example disagrees with its human label (false accepts reported first).
-6. The gate self-test cannot show that the known regression is caught.
-7. A test is focused (`.only`) or skipped outside the quarantine process.
+6. A test is focused (`.only`) or skipped.
 
-Advisory (reported, never blocking): quarantined tests, nightly parallel-stress results. UI runs on Chromium only (decision 24).
+Every job blocks; there are no advisory jobs (decisions 24, 25, 28). UI runs on Chromium only.
 
-### 7.3 Flake and quarantine policy
+### 7.3 Flake policy
 
 - Retries: `0` locally; `1` in CI with `failOnFlakyTests: true`. The retry exists only to classify (flaky vs. consistently failing) and capture a second trace. With every external boundary faked, flakiness signals a real defect, usually a UI race.
 - `forbidOnly: !!process.env.CI`. ESLint forbids `test.skip` / `test.fixme` in gated folders.
-- Quarantine: tag `@quarantined` plus an annotation linking an issue. The test leaves the blocking projects and runs in the advisory `quarantined` project, so it is never silently dropped.
+- No quarantine mechanism (decision 28): a flaky test is fixed, or deleted with an issue linked; it is never quietly switched off.
 
 ### 7.4 Failure evidence
 
@@ -563,9 +547,9 @@ Advisory (reported, never blocking): quarantined tests, nightly parallel-stress 
 
 Artifact retention: 14 days. Upload steps use `if: ${{ !cancelled() }}`.
 
-### 7.5 Nightly advisory workflow (`nightly-advisory.yml`)
+### 7.5 Nightly advisory workflow (removed)
 
-Scheduled daily and manually runnable. Runs `api` + `ui-chromium` with `--repeat-each=10 --workers=100%` to surface order dependence and races. Reports, never blocks.
+*Removed on review (decision 25).* It ran the API, UI and smoke suites 10× on 6 workers daily to surface order dependence and races.
 
 ### 7.6 Hardening
 
@@ -610,7 +594,7 @@ npm run regression:revert     # git apply -R …
 - Run `release-gate` manually with `inject_regression: true` → red run with full evidence.
 - Standing demo pull request from `demo/intentional-regression` → `release-gate` red, merge blocked.
 
-**Gate self-test** (`scripts/verify-gate-catches-regression.ts`, `npm run gate:self-test`): applies the patch in its own checkout, runs Vitest and the `api` + `ui-chromium` projects with JSON reporters, and passes only if (a) the expected catalog IDs (DEV-01, API-APR-02, UI-05) failed, (b) other tests still ran and passed (so the failure is the right one, not a crash), and (c) the eval project passed *(§13, item 3)*.
+**Gate self-test:** built, validated in CI, then removed on review (decision 27). It applied the patch and passed only if exactly DEV-01, API-APR-02 and UI-05 failed. The detection matrix above was re-verified by hand against the minimal suites.
 
 ---
 
@@ -715,6 +699,11 @@ Each phase ends with a commit (Conventional Commits) and its exit criteria met. 
 | 22 | Install scripts of `esbuild` and `fsevents` explicitly denied (`allowScripts`) | Neither is needed (binaries come from platform packages); denying is the safer supply-chain default and makes the choice visible |
 | 23 | Gate layers run as independent parallel jobs instead of waiting for `developer-checks` | The first demo-PR run showed the chained design skipping API, UI and evaluation jobs after a unit failure: the gate still blocked, but the run hid every other layer's verdict. Parallel jobs give the investigator the full picture in one run and shorten the critical path; the cost is extra CI minutes when static checks fail |
 | 24 | No cross-browser runs; the UI layer runs on Chromium only | Decided on review: the gated risks (citation validity, approval state, stale responses) are application logic that does not vary by browser engine; extra engines added CI jobs without adding protection |
+| 25 | No nightly stress workflow | Decided on review: every suite was already stress-tested with `--repeat-each=5` while it was built, and each blocking run uses 4 parallel workers; a daily advisory job added CI cost without guarding a release |
+| 26 | Minimal API (6) and UI (6) suites; smoke stays at 2 | Decided on review: keep exactly what the exercise specifies plus server-side enforcement of the two named invalid-citation cases; the cut edge cases are documented as next steps |
+| 27 | No gate self-test job | Decided on review: the exercise asks to document an intentional regression, which the patch, npm scripts, demo PR and `inject_regression` run already do; the self-test was extra rigour at extra cost |
+| 28 | No quarantine job or project | Decided on review: it ran zero tests and was the most expensive job; the policy is now "never skip: fix, or delete with an issue" |
+| 29 | First CI job renamed `developer-checks` → `static-checks-and-unit-tests` | The name says what fails when it is red |
 
 ---
 

@@ -3,9 +3,9 @@ import { expect, test } from '../support/dashboard-test-fixtures';
 import { summaryResponses } from '../support/summary-response-builders';
 
 /**
- * UI layer: the agent-visible behaviour of a successful generation, the insufficient-information
- * state and a failed approval. The AI summary service is faked in the browser; approvals reach
- * the real dashboard API. No assertion depends on the summary's wording.
+ * UI layer: a successful generation and the insufficient-information state. The AI summary
+ * service is faked in the browser; approvals reach the real dashboard API. No assertion depends
+ * on the summary's wording.
  */
 test.describe('Generating and approving a summary', () => {
   test(
@@ -27,7 +27,6 @@ test.describe('Generating and approving a summary', () => {
 
       await expect(dashboardPage.approvedNotice).toBeVisible();
       await expect(dashboardPage.approveSummaryButton).toBeHidden();
-      await expect(dashboardPage.regenerateSummaryButton).toBeHidden();
       expect(summaryServiceMock.requestsForTicket(ticket.id)).toHaveLength(1);
     },
   );
@@ -45,39 +44,6 @@ test.describe('Generating and approving a summary', () => {
       await expect(dashboardPage.insufficientInformationNotice).toBeVisible();
       await expect(dashboardPage.summaryText).toBeHidden();
       await expect(dashboardPage.approveSummaryButton).toBeDisabled();
-      await expect(dashboardPage.regenerateSummaryButton).toBeEnabled();
-    },
-  );
-
-  test(
-    'keeps the summary unapproved and lets the agent try again when approval fails',
-    catalogId('UI-11'),
-    async ({ page, ticketFactory, summaryServiceMock, dashboardPage }) => {
-      const ticket = await ticketFactory.createTicket();
-      summaryServiceMock.respondWith(summaryResponses.validFor(ticket));
-      // Only the first approval attempt fails; the second one reaches the real dashboard API.
-      await page.route(
-        `**/api/tickets/${ticket.id}/approve`,
-        (route) =>
-          route.fulfill({
-            status: 500,
-            contentType: 'application/json',
-            body: JSON.stringify({ error: 'internal_error' }),
-          }),
-        { times: 1 },
-      );
-      await dashboardPage.openTicket(ticket.id);
-      await dashboardPage.generateSummary();
-
-      await dashboardPage.approveSummary();
-
-      await expect(dashboardPage.approvalErrorAlert).toBeVisible();
-      await expect(dashboardPage.approvedNotice).toBeHidden();
-      await expect(dashboardPage.approveSummaryButton).toBeEnabled();
-
-      await dashboardPage.approveSummary();
-
-      await expect(dashboardPage.approvedNotice).toBeVisible();
     },
   );
 });
