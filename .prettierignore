@@ -1,0 +1,10 @@
+node_modules
+dist
+playwright-report
+test-results
+blob-report
+release-gate-evidence
+package-lock.json
+
+# Documentation is hand-formatted (wide tables read better unpadded).
+**/*.md

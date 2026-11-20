@@ -1,0 +1,60 @@
+// @ts-check
+import eslint from '@eslint/js';
+import { defineConfig } from 'eslint/config';
+import playwright from 'eslint-plugin-playwright';
+import tseslint from 'typescript-eslint';
+
+const playwrightRecommended = playwright.configs['flat/recommended'];
+
+export default defineConfig(
+  {
+    ignores: [
+      'dist/**',
+      'playwright-report/**',
+      'test-results/**',
+      'blob-report/**',
+      'release-gate-evidence/**',
+    ],
+  },
+
+  eslint.configs.recommended,
+  tseslint.configs.recommendedTypeChecked,
+  {
+    languageOptions: {
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+    rules: {
+      eqeqeq: ['error', 'always'],
+      '@typescript-eslint/consistent-type-imports': 'error',
+      // The summary panel is a state machine: every state must be handled explicitly.
+      '@typescript-eslint/switch-exhaustiveness-check': 'error',
+    },
+  },
+
+  {
+    files: ['**/*.js'],
+    extends: [tseslint.configs.disableTypeChecked],
+  },
+
+  // SDET suite rules: these are the classic sources of flaky or silently-dropped Playwright tests.
+  {
+    files: ['tests/**/*.ts', 'eval/**/*.ts'],
+    ...playwrightRecommended,
+    rules: {
+      ...playwrightRecommended.rules,
+      'playwright/missing-playwright-await': 'error',
+      'playwright/no-focused-test': 'error',
+      'playwright/no-skipped-test': ['error', { allowConditional: false }],
+      'playwright/no-wait-for-timeout': 'error',
+      'playwright/no-wait-for-selector': 'error',
+      'playwright/no-networkidle': 'error',
+      'playwright/no-force-option': 'error',
+      'playwright/no-page-pause': 'error',
+      'playwright/no-conditional-in-test': 'error',
+      'playwright/prefer-web-first-assertions': 'error',
+    },
+  },
+);

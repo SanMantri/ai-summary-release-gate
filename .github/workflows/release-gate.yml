@@ -1,0 +1,72 @@
+name: release-gate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-gate-${{ github.ref }}
+  # Superseded pull-request runs are cancelled; runs on main always finish.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  developer-checks:
+    name: developer-checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up project
+        uses: ./.github/actions/setup-project
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Check formatting
+        run: npm run format:check
+
+      - name: Build dashboard UI
+        run: npm run build:ui
+
+  # The single required status check. It always runs and fails unless every blocking job
+  # succeeded: GitHub skips the dependents of a failed job, and a skipped required check
+  # would otherwise count as passing.
+  release-gate:
+    name: release-gate
+    if: always()
+    needs: [developer-checks]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every blocking job to succeed
+        env:
+          BLOCKING_JOB_RESULTS: ${{ toJSON(needs) }}
+        run: |
+          {
+            echo "## Release gate"
+            echo
+            echo "| Blocking job | Result |"
+            echo "|---|---|"
+            echo "$BLOCKING_JOB_RESULTS" | jq -r 'to_entries[] | "| \(.key) | \(.value.result) |"'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          jobs_that_did_not_succeed=$(echo "$BLOCKING_JOB_RESULTS" \
+            | jq -r '[to_entries[] | select(.value.result != "success") | .key] | join(", ")')
+
+          if [ -n "$jobs_that_did_not_succeed" ]; then
+            echo "::error title=Release blocked::These blocking jobs did not succeed: $jobs_that_did_not_succeed"
+            printf '\n**Release blocked.** Did not succeed: %s\n' "$jobs_that_did_not_succeed" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+          printf '\n**Release allowed.** Every blocking job succeeded.\n' >> "$GITHUB_STEP_SUMMARY"

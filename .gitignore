@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Test evidence (uploaded as CI artifacts, never committed)
+playwright-report/
+test-results/
+blob-report/
+release-gate-evidence/
+
+# Local environment
+.env
+.env.*
+*.log
+.DS_Store
