@@ -95,8 +95,10 @@ jobs:
         with:
           inject-regression: ${{ inputs.inject_regression == true }}
 
+      # Browser only: the ubuntu-latest image already ships Chrome's system libraries. Adding
+      # --with-deps re-installs them from the Ubuntu apt mirror, which once took 8.5 minutes.
       - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install chromium
 
       - name: UI tests (AI service faked in the browser) and full-stack smoke tests
         run: npx playwright test --project=ui-chromium --project=smoke-chromium
