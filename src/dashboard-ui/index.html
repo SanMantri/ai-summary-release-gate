@@ -4,9 +4,18 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Support Dashboard</title>
+    <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <main id="dashboard-app"></main>
+    <header class="dashboard-header">
+      <h1>Support Dashboard</h1>
+      <p class="synthetic-data-note">Synthetic tickets · fake AI summary service</p>
+    </header>
+    <div class="dashboard-layout">
+      <nav id="ticket-list" class="ticket-list" aria-label="Tickets"></nav>
+      <main id="ticket-detail" class="ticket-detail" aria-label="Ticket"></main>
+      <aside id="summary-panel" class="summary-panel" aria-label="AI summary"></aside>
+    </div>
     <script type="module" src="./main.ts"></script>
   </body>
 </html>

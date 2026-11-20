@@ -71,6 +71,28 @@ const demoTickets: Array<{ ticket: Ticket; fakeSummaryScenario: FakeSummaryScena
     },
   },
   {
+    fakeSummaryScenario: 'ok_with_foreign_citation',
+    ticket: {
+      id: 't-demo-damaged-item',
+      subject: 'Headphones arrived broken',
+      customerName: 'Sam Ortiz',
+      messages: [
+        {
+          id: 'm-demo-501',
+          author: 'customer',
+          sentAt: '2026-03-04T16:30:00.000Z',
+          body: 'My headphones from order #55120 arrived with a cracked headband.',
+        },
+        {
+          id: 'm-demo-502',
+          author: 'agent',
+          sentAt: '2026-03-04T16:41:00.000Z',
+          body: 'Sorry to hear that. Could you send a photo of the damage so we can arrange a replacement?',
+        },
+      ],
+    },
+  },
+  {
     fakeSummaryScenario: 'unavailable',
     ticket: {
       id: 't-demo-summary-outage',

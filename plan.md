@@ -147,6 +147,7 @@ Each ticket has a scenario (default `ok`), set via the seeding endpoint. State i
 | Scenario | Behaviour |
 |---|---|
 | `ok` | `200 ok`, deterministic summary built from the first customer message, cites that message |
+| `ok_with_foreign_citation` | Like `ok`, but also cites `m-demo-201`, a message from another demo ticket — makes the "citations blocked" state reachable by hand in `npm start` *(added in Phase 3)* |
 | `insufficient_information` | `200 { status: "insufficient_information" }` |
 | `unavailable` | `503 { error: "unavailable" }` every time |
 | `unavailable_then_ok` | First call `503`, every later call behaves like `ok` (attempt counter per ticket) |
@@ -185,7 +186,7 @@ Rules:
 
 ### 3.9 Demo data (`src/server/demo-tickets.ts`)
 
-`npm start` seeds four read-only demo tickets that walk through each state by hand: a duplicate-charge ticket (`ok`), a "Hello? Anyone there?" ticket (`insufficient_information`), a login-lockout ticket (`unavailable_then_ok`), and an outage ticket (`unavailable`). Tests never use demo tickets.
+`npm start` seeds five read-only demo tickets that walk through each state by hand: a duplicate-charge ticket (`ok`), a "Hello? Anyone there?" ticket (`insufficient_information`), a login-lockout ticket (`unavailable_then_ok`), a damaged-item ticket whose summary cites another ticket (`ok_with_foreign_citation`), and an outage ticket (`unavailable`). Tests never use demo tickets. (`approval-failed` is only reachable by faking a server error; UI-11 covers it.)
 
 ---
 

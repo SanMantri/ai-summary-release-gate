@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { parseSummaryResponse } from '../../domain/summary-response-contract';
 import type { Ticket } from '../../domain/ticket';
-import { FakeSummaryProvider } from './fake-summary-provider';
+import { FakeSummaryProvider, messageIdFromAnotherTicket } from './fake-summary-provider';
 
 function syntheticTicket(ticketId: string, messages?: Ticket['messages']): Ticket {
   return {
@@ -71,6 +71,19 @@ describe('DEV-03 FakeSummaryProvider', () => {
       expect(parseSummaryResponse(reply.httpStatus, reply.body).kind).toBe(expectedKind);
     },
   );
+
+  it('cites a valid message plus a message from another ticket for ok_with_foreign_citation', async () => {
+    const provider = new FakeSummaryProvider();
+    const ticket = syntheticTicket('t-foreign');
+    provider.useScenarioForTicket(ticket.id, 'ok_with_foreign_citation');
+
+    const reply = await provider.requestSummary(ticket, neverCancelled);
+
+    expect(parseSummaryResponse(reply.httpStatus, reply.body)).toMatchObject({
+      kind: 'summary',
+      sourceIds: ['t-foreign-m1', messageIdFromAnotherTicket],
+    });
+  });
 
   it('fails the first request and succeeds afterwards for unavailable_then_ok', async () => {
     const provider = new FakeSummaryProvider();

@@ -4,6 +4,7 @@ import type { SummaryProvider, SummaryServiceReply } from './summary-provider';
 /** Deterministic behaviours of the fake AI service, chosen per ticket (plan.md §3.6). */
 export const fakeSummaryScenarios = [
   'ok',
+  'ok_with_foreign_citation',
   'insufficient_information',
   'unavailable',
   'unavailable_then_ok',
@@ -19,6 +20,8 @@ export class FakeSummaryProviderError extends Error {
 }
 
 const maximumQuotedCharacters = 160;
+/** A real message ID from a different demo ticket (the login-lockout ticket). */
+export const messageIdFromAnotherTicket = 'm-demo-201';
 const unavailableReply: SummaryServiceReply = { httpStatus: 503, body: { error: 'unavailable' } };
 const insufficientInformationReply: SummaryServiceReply = {
   httpStatus: 200,
@@ -51,6 +54,8 @@ export class FakeSummaryProvider implements SummaryProvider {
     switch (scenario) {
       case 'ok':
         return Promise.resolve(summaryReplyFor(ticket));
+      case 'ok_with_foreign_citation':
+        return Promise.resolve(summaryReplyFor(ticket, [messageIdFromAnotherTicket]));
       case 'insufficient_information':
         return Promise.resolve(insufficientInformationReply);
       case 'unavailable':
@@ -69,7 +74,7 @@ export class FakeSummaryProvider implements SummaryProvider {
   }
 }
 
-function summaryReplyFor(ticket: Ticket): SummaryServiceReply {
+function summaryReplyFor(ticket: Ticket, additionalSourceIds: string[] = []): SummaryServiceReply {
   const firstCustomerMessage = ticket.messages.find((message) => message.author === 'customer');
   if (!firstCustomerMessage) {
     return insufficientInformationReply;
@@ -85,7 +90,7 @@ function summaryReplyFor(ticket: Ticket): SummaryServiceReply {
     body: {
       status: 'ok',
       summary: `${ticket.customerName} wrote: "${quotedText}"`,
-      sourceIds: [firstCustomerMessage.id],
+      sourceIds: [firstCustomerMessage.id, ...additionalSourceIds],
     },
   };
 }
