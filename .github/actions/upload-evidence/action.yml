@@ -1,0 +1,23 @@
+name: Upload evidence
+description: >
+  Upload the Playwright HTML report (traces, screenshots, video, per-test server logs) and the
+  release-gate evidence folder (JUnit XML, server log, scorecards) so another engineer can
+  investigate a failed run without re-running it.
+
+inputs:
+  artifact-name:
+    description: Artifact name, unique per job and run attempt.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Upload evidence artifact
+      uses: actions/upload-artifact@v7
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: |
+          playwright-report/
+          release-gate-evidence/
+        retention-days: 14
+        if-no-files-found: ignore
