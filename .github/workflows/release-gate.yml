@@ -49,13 +49,36 @@ jobs:
         with:
           artifact-name: ${{ env.EVIDENCE_ARTIFACT_NAME }}
 
+  api-tests:
+    name: api-tests
+    needs: developer-checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      EVIDENCE_ARTIFACT_NAME: api-tests-evidence-attempt-${{ github.run_attempt }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up project
+        uses: ./.github/actions/setup-project
+
+      - name: API tests (contract, error mapping, approval enforcement)
+        run: npx playwright test --project=api
+
+      - name: Upload evidence
+        if: ${{ !cancelled() }}
+        uses: ./.github/actions/upload-evidence
+        with:
+          artifact-name: ${{ env.EVIDENCE_ARTIFACT_NAME }}
+
   # The single required status check. It always runs and fails unless every blocking job
   # succeeded: GitHub skips the dependents of a failed job, and a skipped required check
   # would otherwise count as passing.
   release-gate:
     name: release-gate
     if: always()
-    needs: [developer-checks]
+    needs: [developer-checks, api-tests]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
