@@ -6,9 +6,9 @@ Everything runs on synthetic data, with no credentials, paid services or externa
 
 **Evidence that the gate works** (CI runs on this repository):
 
-- ✅ [Green release gate on `main`](https://github.com/SanMantri/ai-summary-release-gate/actions/runs/44756674539). All four test jobs pass, so `release-gate` allows the release.
+- ✅ [Green release gate on `main`](https://github.com/SanMantri/ai-summary-release-gate/actions/runs/44759296549). All four test jobs pass, so `release-gate` allows the release.
 - ❌ [Pull request #2: intentional regression, release blocked](https://github.com/SanMantri/ai-summary-release-gate/pull/2).
-  - [Its run](https://github.com/SanMantri/ai-summary-release-gate/actions/runs/44757813653) fails the unit, API and UI layers, each on its mixed-citation test.
+  - [Its run](https://github.com/SanMantri/ai-summary-release-gate/actions/runs/44759313888) fails the unit, API and UI layers, each on its mixed-citation test.
   - The evaluation stays green.
 - ❌ [Manual run with `inject_regression`](https://github.com/SanMantri/ai-summary-release-gate/actions/runs/44756522956). The same verdicts as the pull request, without needing a branch.
 
