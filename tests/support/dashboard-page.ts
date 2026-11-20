@@ -79,6 +79,11 @@ export class DashboardPage {
     await this.generateSummaryButton.click();
   }
 
+  /** An impatient double click: the second click must not send a second summary request. */
+  async generateSummaryWithDoubleClick(): Promise<void> {
+    await this.generateSummaryButton.dblclick();
+  }
+
   async retryGeneration(): Promise<void> {
     await this.retryButton.click();
   }

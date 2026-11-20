@@ -72,13 +72,39 @@ jobs:
         with:
           artifact-name: ${{ env.EVIDENCE_ARTIFACT_NAME }}
 
+  ui-tests:
+    name: ui-tests
+    needs: developer-checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      EVIDENCE_ARTIFACT_NAME: ui-tests-evidence-attempt-${{ github.run_attempt }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up project
+        uses: ./.github/actions/setup-project
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: UI tests (AI service faked in the browser) and full-stack smoke tests
+        run: npx playwright test --project=ui-chromium --project=smoke-chromium
+
+      - name: Upload evidence
+        if: ${{ !cancelled() }}
+        uses: ./.github/actions/upload-evidence
+        with:
+          artifact-name: ${{ env.EVIDENCE_ARTIFACT_NAME }}
+
   # The single required status check. It always runs and fails unless every blocking job
   # succeeded: GitHub skips the dependents of a failed job, and a skipped required check
   # would otherwise count as passing.
   release-gate:
     name: release-gate
     if: always()
-    needs: [developer-checks, api-tests]
+    needs: [developer-checks, api-tests, ui-tests]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
