@@ -358,13 +358,15 @@ insufficientInformationNotice · approvalErrorAlert · approvedNotice
 
 ### 5.1 Developer unit tests (Vitest)
 
+Minimal set, decided on review (decision 31): only product rules the exercise depends on, plus one safety guard.
+
 | ID | Subject | Cases |
 |---|---|---|
-| DEV-01 | `validateCitations` | One valid citation; several valid; duplicates of a valid ID; empty list; `undefined`; only foreign IDs; valid + foreign (mixed); unknown ID; empty-string ID; case mismatch. Asserts both the verdict and the exact `problems`. |
-| DEV-02 | `parseSummaryResponse` | Each §3.3 row, including `ok` without `sourceIds`, unknown `status`, non-array `sourceIds`, whitespace-only `summary`, non-object body, 500/502. |
-| DEV-03 | `FakeSummaryProvider` | Every scenario; `unavailable_then_ok` counters are independent per ticket when calls interleave. |
-| DEV-04 | `createDashboardServer` | `/api/__test__/tickets` is `404` when seeding is disabled and available when enabled. |
-| DEV-05 | `TicketStore.approve` | Check-and-set: a second approval is rejected; approval persists on read. |
+| DEV-01 | `validateCitations` | A valid citation is accepted; rejected: empty list, no list, only another ticket's message, a valid message plus another ticket's (asserts the verdict and the exact `problems`) |
+| DEV-02 | `parseSummaryResponse` | Ready summary; ready summary without `sourceIds` (shown but unapprovable); insufficient information; 503 unavailable; one off-contract response |
+| DEV-03 | `createDashboardServer` | `/api/__test__/tickets` does not exist unless test seeding is enabled |
+
+Cut on review (33 tests): the fake AI service's own tests (test scaffolding, exercised by the API and smoke suites), the ticket store's tests (approval persistence is covered by API-APR-01), and redundant citation and parsing cases.
 
 ### 5.2 API tests (`api` project)
 
@@ -705,6 +707,7 @@ Each phase ends with a commit (Conventional Commits) and its exit criteria met. 
 | 28 | No quarantine job or project | Decided on review: it ran zero tests and was the most expensive job; the policy is now "never skip: fix, or delete with an issue" |
 | 29 | First CI job renamed `developer-checks` → `static-checks-and-unit-tests` | The name says what fails when it is red |
 | 30 | CI installs only the Chromium browser (`npx playwright install chromium`), not its OS packages | `ubuntu-latest` already ships Chrome's system libraries; `--with-deps` re-installed them from the Ubuntu apt mirror, which once ran at 43 kB/s and stretched `ui-tests` from ~1 min to 9 min 21 s |
+| 31 | Minimal unit suite: 44 → 11 tests | Decided on review: keep the citation rule (including the mixed case that catches the intentional regression), the three response shapes plus missing citations, and the test-seeding guard; drop tests of test scaffolding and cases already covered by the API suite |
 
 ---
 

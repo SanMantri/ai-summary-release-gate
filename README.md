@@ -134,7 +134,7 @@ Each layer proves one thing. Combinations are tested at the lowest layer that ca
 
 | Layer | Owner | Proves | Leaves to other layers |
 |---|---|---|---|
-| Developer unit (Vitest, `src/**/*.test.ts`, 44 tests) | Developer | Every combination of the citation rule; response parsing; fake AI service behaviors; the test-seeding guard; approving twice is impossible | Anything over HTTP or in a browser |
+| Developer unit (Vitest, `src/**/*.test.ts`, 11 tests) | Developer | The citation rule (valid, empty, missing, another ticket's, mixed); reading the three service responses and a missing citation list; the test-seeding endpoint stays off unless enabled | Anything over HTTP or in a browser |
 | API (`tests/api`, no browser, 6 tests) | SDET | The three summary responses at the service boundary; the **server** refuses approval for missing and cross-ticket citations | What the agent sees |
 | UI (`tests/ui`, Chromium, AI service faked in the browser, 6 tests) | SDET | What the agent sees and can click: a valid summary approved, insufficient information, 503 then retry, a retry that returns an invalid summary, missing and cross-ticket citations | That the UI and API agree |
 | Smoke (`tests/smoke`, nothing faked in the browser, 2 tests) | SDET | The real path from UI to API to the fake AI service works | Edge cases |
