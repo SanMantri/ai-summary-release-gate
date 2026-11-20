@@ -74,6 +74,7 @@ const reporters: ReporterDescription[] = [
   ['list'],
   ['html', { open: 'never', outputFolder: 'playwright-report' }],
   ['junit', { outputFile: 'release-gate-evidence/playwright-results.junit.xml' }],
+  ['./reporting/release-gate-summary-reporter.ts'],
   ...(isCI ? ([['github']] satisfies ReporterDescription[]) : []),
 ];
 

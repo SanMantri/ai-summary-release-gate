@@ -65,4 +65,24 @@ export default defineConfig(
       'playwright/prefer-web-first-assertions': 'error',
     },
   },
+
+  // Oracle independence (plan.md decision 10): the evaluation must never reuse product code,
+  // or a bug in the product's citation rule would also "pass" its own evaluation.
+  {
+    files: ['eval/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['**/src/**'],
+              message:
+                'The summary evaluation must stay independent of product code (plan.md decision 10).',
+            },
+          ],
+        },
+      ],
+    },
+  },
 );

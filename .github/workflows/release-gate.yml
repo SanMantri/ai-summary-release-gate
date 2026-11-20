@@ -98,13 +98,37 @@ jobs:
         with:
           artifact-name: ${{ env.EVIDENCE_ARTIFACT_NAME }}
 
+  summary-evaluation:
+    name: summary-evaluation
+    needs: developer-checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      EVIDENCE_ARTIFACT_NAME: summary-evaluation-evidence-attempt-${{ github.run_attempt }}
+      RELEASE_GATE_LAYER: eval
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up project
+        uses: ./.github/actions/setup-project
+
+      - name: Deterministic summary evaluation (labeled synthetic examples)
+        run: npx playwright test --project=eval
+
+      - name: Upload evidence
+        if: ${{ !cancelled() }}
+        uses: ./.github/actions/upload-evidence
+        with:
+          artifact-name: ${{ env.EVIDENCE_ARTIFACT_NAME }}
+
   # The single required status check. It always runs and fails unless every blocking job
   # succeeded: GitHub skips the dependents of a failed job, and a skipped required check
   # would otherwise count as passing.
   release-gate:
     name: release-gate
     if: always()
-    needs: [developer-checks, api-tests, ui-tests]
+    needs: [developer-checks, api-tests, ui-tests, summary-evaluation]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
