@@ -1,7 +1,25 @@
 # Plan — AI Summary Release Gate
 
 > Spec-driven plan for the take-home exercise **"Build a Playwright release gate for an AI-assisted feature."**
-> Status: **Approved** 2026-11-20 (including all §13 interpretations) · Phase 0 in progress.
+> Status: **Approved** 2026-11-20 (including all §13 interpretations) · **Implemented** — see [Implementation status](#implementation-status).
+
+## Implementation status
+
+Every phase was validated locally and by a green CI run before the next one started.
+
+| Phase | How it was validated | Findings and deviations |
+|---|---|---|
+| 0 Bootstrap | Static checks green locally and in CI; ESLint probe confirmed it catches floating promises, `test.skip`, `waitForTimeout` | First CI run failed: npm 11.6 lock file lacked Linux optional dependencies → decisions 21–22 |
+| 1 Domain | 27 unit tests written first (red), then green; probe `every → some` fails exactly the mixed case | — |
+| 2 API | 44 unit tests; every fake scenario and API error path exercised with `curl` against the real server | Time-limit failures now logged with their real cause |
+| 3 UI | Every §3.7 state reached in Chromium with demo tickets; screenshots reviewed | Added fake scenario `ok_with_foreign_citation` + demo ticket so the blocked state is reachable by hand |
+| 4 Test infrastructure | Temporary probes (removed): parallel run across projects, `page.clock`, held-response release after ticket switch, strict-queue failure, per-test server-log attachment | — |
+| 5 API suite | 23 tests; 115/115 under `--repeat-each=5 --workers=8`; probe fails exactly API-APR-02 (mixed) | — |
+| 6 UI + smoke | 19 tests; 95/95 under `--repeat-each=5 --workers=8`; probes: `every → some` fails exactly UI-05, removing the stale-response guard fails UI-06 every time | UI-10 boundary check exposed that an installed clock keeps flowing → clock is now paused before the click |
+| 7 Evaluation | 29 tests; product regression leaves eval green; a grounding-check bug surfaces as a false accept; importing `src/` from `eval/` fails lint | — |
+| 8 CI gate | All blocking + advisory jobs green on Linux, including Firefox and WebKit; nightly stress (10× repeat, 6 workers) green | Firefox cannot launch inside the local command sandbox; validated in CI instead |
+| 9 Regression | Gate self-test verified locally and in CI; demo PR and manual `inject_regression` run are red for the expected reasons | The self-test exposed Vitest truncating interpolated test names → `taskTitleValueFormatTruncate: 0`. The first demo-PR run showed chained jobs hiding later layers' verdicts → decision 23 |
+| 10 Documentation | README and `docs/test-strategy.md`; fresh-clone walkthrough | — |
 > GitHub repository (to be created): `ai-summary-release-gate`
 
 ## Contents
@@ -486,14 +504,17 @@ The `SummaryProvider` seam is where a live provider plugs in; the eval checks ar
 Triggers: `pull_request`, `push` to `main`, `workflow_dispatch` with input `inject_regression` (boolean).
 
 ```
-developer-checks ──┬─▶ api-tests ───────────┐
-(typecheck, lint,  ├─▶ ui-tests (+ smoke) ──┤
- format, Vitest,   ├─▶ summary-evaluation ──┼─▶ release-gate   ← the single required check
- UI build)         └─▶ gate-self-test ──────┘
+developer-checks (typecheck, lint, format, Vitest, UI build) ──┐
+api-tests ─────────────────────────────────────────────────────┤
+ui-tests (+ smoke) ────────────────────────────────────────────┼─▶ release-gate   ← the single required check
+summary-evaluation ────────────────────────────────────────────┤
+gate-self-test ────────────────────────────────────────────────┘
 
 cross-browser-ui (Firefox, WebKit)  ─ advisory: continue-on-error, not a dependency of release-gate
 quarantined-tests                   ─ advisory
 ```
+
+All layers run in parallel (decision 23): one red run shows every layer's verdict.
 
 | Job | Runs | Blocks a release |
 |---|---|---|
@@ -695,6 +716,7 @@ Each phase ends with a commit (Conventional Commits) and its exit criteria met. 
 | 20 | Two type-check contexts: Node (`tsconfig.json`) and browser (`src/dashboard-ui/tsconfig.json`); `src/domain` is compiled in both | Domain code that accidentally uses a Node-only or DOM-only API fails type-checking |
 | 21 | Lock file maintained with npm ≥ 11.20 (`devEngines`, `onFail: warn`); `npm ci` in CI is the hard check | Older npm drops other platforms' optional dependencies from the lock file, which broke the first CI run. `onFail: error` was tried and rejected: it blocks every npm command (including `npm run`) for anyone on an older npm |
 | 22 | Install scripts of `esbuild` and `fsevents` explicitly denied (`allowScripts`) | Neither is needed (binaries come from platform packages); denying is the safer supply-chain default and makes the choice visible |
+| 23 | Gate layers run as independent parallel jobs instead of waiting for `developer-checks` | The first demo-PR run showed the chained design skipping API, UI and evaluation jobs after a unit failure: the gate still blocked, but the run hid every other layer's verdict. Parallel jobs give the investigator the full picture in one run and shorten the critical path; the cost is extra CI minutes when static checks fail |
 
 ---
 
