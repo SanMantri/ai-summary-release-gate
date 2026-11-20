@@ -24,7 +24,14 @@
     "test:unit": "vitest run",
     "start:server": "tsx src/server/start-dashboard-server.ts",
     "start": "npm run build:ui && npm run start:server",
-    "dev": "concurrently --names api,ui --prefix-colors blue,magenta \"tsx watch src/server/start-dashboard-server.ts\" \"vite\""
+    "dev": "concurrently --names api,ui --prefix-colors blue,magenta \"tsx watch src/server/start-dashboard-server.ts\" \"vite\"",
+    "test:api": "playwright test --project=api",
+    "test:ui": "playwright test --project=ui-chromium",
+    "test:smoke": "playwright test --project=smoke-chromium",
+    "test:eval": "RELEASE_GATE_LAYER=eval playwright test --project=eval",
+    "test:gate": "npm run check:static && npm run test:unit && playwright test",
+    "test:advisory": "RELEASE_GATE_ADVISORY=1 playwright test --project=ui-firefox --project=ui-webkit --project=quarantined --pass-with-no-tests",
+    "report": "playwright show-report"
   },
   "dependencies": {
     "express": "^5.3.0",

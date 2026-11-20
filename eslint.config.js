@@ -51,6 +51,8 @@ export default defineConfig(
     ...playwrightRecommended,
     rules: {
       ...playwrightRecommended.rules,
+      // Playwright fixtures that need no other fixture must still destructure their first argument.
+      'no-empty-pattern': ['error', { allowObjectPatternsAsParameters: true }],
       'playwright/missing-playwright-await': 'error',
       'playwright/no-focused-test': 'error',
       'playwright/no-skipped-test': ['error', { allowConditional: false }],

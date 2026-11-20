@@ -46,6 +46,11 @@ const ticketIdInPath = /^\/api\/(?:__test__\/)?tickets\/([^/]+)/;
 
 export function requestLoggingMiddleware(logger: ServerLogger): RequestHandler {
   return (request, response, next) => {
+    // Built JS/CSS bundles are noise for anyone investigating a failure.
+    if (request.path.startsWith('/assets/')) {
+      next();
+      return;
+    }
     const startedAt = performance.now();
     response.on('finish', () => {
       logger.log('http_request', {
