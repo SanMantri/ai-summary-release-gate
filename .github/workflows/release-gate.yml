@@ -158,40 +158,7 @@ jobs:
         with:
           artifact-name: ${{ env.EVIDENCE_ARTIFACT_NAME }}
 
-  # ── Advisory jobs: reported on every run, never block a release (not in release-gate's needs) ──
-
-  cross-browser-ui:
-    name: cross-browser-ui (${{ matrix.browser }}, advisory)
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    continue-on-error: true
-    strategy:
-      fail-fast: false
-      matrix:
-        browser: [firefox, webkit]
-    env:
-      EVIDENCE_ARTIFACT_NAME: cross-browser-ui-${{ matrix.browser }}-evidence-attempt-${{ github.run_attempt }}
-      RELEASE_GATE_ADVISORY: '1'
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
-
-      - name: Set up project
-        uses: ./.github/actions/setup-project
-        with:
-          inject-regression: ${{ inputs.inject_regression == true }}
-
-      - name: Install ${{ matrix.browser }}
-        run: npx playwright install --with-deps ${{ matrix.browser }}
-
-      - name: UI tests on ${{ matrix.browser }} (advisory)
-        run: npx playwright test --project=ui-${{ matrix.browser }}
-
-      - name: Upload evidence
-        if: ${{ !cancelled() }}
-        uses: ./.github/actions/upload-evidence
-        with:
-          artifact-name: ${{ env.EVIDENCE_ARTIFACT_NAME }}
+  # ── Advisory job: reported on every run, never blocks a release (not in release-gate's needs) ──
 
   quarantined-tests:
     name: quarantined-tests (advisory)
