@@ -42,7 +42,7 @@ Each important test was checked by deliberately breaking the code ("mutation pro
 | Grounding against the whole ticket instead of only cited messages | The `specific-from-uncited-message` evaluation example, reported as a false accept |
 | `eval/` importing product code | ESLint (`no-restricted-imports`) |
 
-The first row is the documented intentional regression: `npm run regression:apply`, pull request #1 and the manual **inject_regression** run all reproduce it.
+The first row is the documented intentional regression: `npm run regression:apply`, pull request #2 and the manual **inject_regression** run all reproduce it.
 
 ## Flakiness policy
 
