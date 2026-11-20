@@ -55,7 +55,6 @@ Prerequisites:
 npm ci
 npx playwright install chromium
 npm run test:gate          # static checks, unit tests, API/UI/smoke/evaluation suites
-npm run gate:self-test     # proves the gate still catches the known regression
 ```
 
 To try the dashboard yourself:
@@ -75,15 +74,13 @@ The demo comes with five synthetic tickets, one for each state:
 
 | Command | What it runs | Blocks a release? |
 |---|---|---|
-| `npm run test:gate` | Static checks, unit tests and every blocking Playwright project: the CI gate except the self-test, which needs a clean citation rule and so runs on its own | yes |
+| `npm run test:gate` | Everything the CI gate runs: static checks, unit tests, then the API, UI, smoke and evaluation suites | yes |
 | `npm run check:static` | Type-check (Node and browser code checked separately), ESLint, Prettier | yes |
 | `npm run test:unit` | Developer unit tests (Vitest), next to the code they test | yes |
 | `npm run test:api` | API tests: response contract, error mapping, server-side approval enforcement | yes |
 | `npm run test:ui` | UI tests in Chromium, with the AI service faked in the browser | yes |
 | `npm run test:smoke` | Full-stack smoke tests: nothing faked in the browser | yes |
 | `npm run test:eval` | Deterministic summary evaluation | yes |
-| `npm run gate:self-test` | Proves the gate still catches the known regression | yes |
-| `npm run test:advisory` | Tests tagged `@quarantined` (excluded from the gate, still run) | no |
 | `npm run regression:apply` / `regression:revert` | Inject or remove the intentional regression | — |
 | `npm run report` | Open the last Playwright HTML report | — |
 | `npm start` / `npm run dev` | Demo server / dev server with reload | — |
@@ -113,8 +110,6 @@ Expected result: the run stops at the unit tests. To see every layer's verdict, 
 - Pull request [#1 "Demo: intentional regression — do not merge"](https://github.com/SanMantri/ai-summary-release-gate/pull/1). It contains the regression, and its `release-gate` check is red.
 - Run the **release-gate** workflow manually (Actions → release-gate → Run workflow) with **inject_regression** ticked.
 
-**The gate tests itself.** The blocking `gate-self-test` job applies the patch to a clean copy of the code. It passes only if **exactly** DEV-01, API-APR-02 and UI-05 fail and every other test passes, so a crash or a broken build can't make it pass. It also requires the evaluation to stay green. Anyone who weakens one of those tests turns the gate red.
-
 ## Release-blocking criteria
 
 A change can't be released if any of these is true:
@@ -124,15 +119,14 @@ A change can't be released if any of these is true:
 3. Any API test fails: response contract, error mapping or approval enforcement.
 4. Any UI or smoke test fails on Chromium, **or passes only on retry**. A test that passes only on retry is flaky, and flaky tests block.
 5. Any evaluation example disagrees with its human label. False accepts, where a bad summary passed, are reported first.
-6. The gate self-test can't show that the known regression is caught.
-7. A test is focused (`.only`) or skipped outside the quarantine process.
+6. A test is focused (`.only`) or skipped.
 
-**Advisory only (reported, never blocking):** quarantined tests. The gate runs the UI in Chromium only. The risks it guards are citation and approval-state logic, which don't change between browser engines, so extra browsers would add CI time without adding protection.
+Every job in the workflow blocks; there are no advisory jobs. The UI runs in Chromium only. The risks the gate guards are citation and approval-state logic, which don't change between browser engines, so extra browsers would add CI time without adding protection.
 
 How the workflow enforces this:
 - **One required check.** `release-gate` is the only check that branch protection requires. It always runs, and it fails unless every blocking job *succeeded*. This closes a common hole: GitHub skips the jobs after a failed job, and a skipped required check counts as passing.
 - **Flaky tests.** In CI each test gets one retry plus `failOnFlakyTests`. The retry only classifies the failure (flaky, or failing every time) and records a second trace. Every outside service is faked, so flakiness signals a real bug.
-- **Parking a test.** Tag it `@quarantined` and link an issue in an annotation. It then leaves the blocking jobs and runs in the advisory `quarantined-tests` job, so tests are never silently dropped.
+- **No skipped tests.** The linter forbids `.only`, `test.skip` and `test.fixme`, and CI forbids `.only`. A flaky test is fixed, or deleted with an issue linked; it is never quietly switched off.
 
 ## Where the line is drawn between test layers
 
@@ -140,10 +134,10 @@ Each layer proves one thing. Combinations are tested at the lowest layer that ca
 
 | Layer | Owner | Proves | Leaves to other layers |
 |---|---|---|---|
-| Developer unit (Vitest, `src/**/*.test.ts`) | Developer | Every branch of the citation rule; response parsing; fake AI service behaviors; the test-seeding guard; approving twice is impossible | Anything over HTTP or in a browser |
-| API (`tests/api`, no browser) | SDET | The summary endpoint's contract and error mapping; **server-side** refusal of every invalid citation combination; status codes; two simultaneous approvals | What the agent sees |
-| UI (`tests/ui`, Chromium, AI service faked in the browser) | SDET | What the agent sees and can click in each state: retries, timeouts, late responses, double clicks, broken responses, model output rendered as text | That the UI and API agree |
-| Smoke (`tests/smoke`, nothing faked in the browser) | SDET | The real path from UI to API to the fake AI service works | Edge cases |
+| Developer unit (Vitest, `src/**/*.test.ts`, 44 tests) | Developer | Every combination of the citation rule; response parsing; fake AI service behaviors; the test-seeding guard; approving twice is impossible | Anything over HTTP or in a browser |
+| API (`tests/api`, no browser, 6 tests) | SDET | The three summary responses at the service boundary; the **server** refuses approval for missing and cross-ticket citations | What the agent sees |
+| UI (`tests/ui`, Chromium, AI service faked in the browser, 6 tests) | SDET | What the agent sees and can click: a valid summary approved, insufficient information, 503 then retry, a retry that returns an invalid summary, missing and cross-ticket citations | That the UI and API agree |
+| Smoke (`tests/smoke`, nothing faked in the browser, 2 tests) | SDET | The real path from UI to API to the fake AI service works | Edge cases |
 | Evaluation (`eval/`, no browser) | SDET / ML | The checks classify every labeled example correctly | A live model's quality |
 
 The test catalog is in [`plan.md` §5](plan.md#5-test-catalog). Each test's catalog ID, such as `UI-05`, is recorded as an annotation on the test.
@@ -192,10 +186,19 @@ These would run nightly and on every model or prompt change, not on every pull r
 2. **Download the job's evidence artifact.** It's named after the job and attempt, for example `ui-tests-evidence-attempt-1`, and kept for 14 days.
 3. **Open `playwright-report/index.html`.** Every failure has its trace, screenshot, video and a `server-log.jsonl` attachment. That attachment has only the server log lines caused by that test: every request carries an `x-test-id` header, and the server logs it.
 4. **Open a trace:** `npx playwright show-trace <trace.zip>`.
-5. **Read the rest of the folder.** `release-gate-evidence/` also has JUnit XML, the full server log, the evaluation scorecard and, for `gate-self-test`, its report and raw results.
+5. **Read the rest of the folder.** `release-gate-evidence/` also has JUnit XML, the full server log and the evaluation scorecard.
 
 ## What I'd add next
 
+- **The edge-case tests cut to keep this suite minimal.** The dashboard already handles these; the tests would prove it:
+  - a late summary from the previous ticket after switching tickets
+  - a double click sending only one request
+  - the 15-second client timeout
+  - broken responses (HTTP 500, unreadable JSON, dropped connection)
+  - a failed approval, and regenerating after a valid summary
+  - markup in model output shown as text
+  - API error mapping (provider crash or timeout → 503, broken output → 502) and two simultaneous approvals
+- **A gate self-test:** a CI job that applies the intentional regression and fails unless exactly the expected tests catch it, so nobody can silently weaken them.
 - **A live-model evaluation lane:** the same checks with pass-rate thresholds, plus a second model grading faithfulness and completeness.
 - **Approval by `generationId`:** the server keeps a record of each generation, so edited text can't be approved, plus an audit trail.
 - **Dedicated checks** for personal data and for obeying prompt injections.
@@ -204,7 +207,7 @@ These would run nightly and on every model or prompt change, not on every pull r
 - **Contract tests against the real summary service,** checking it meets what the dashboard expects.
 - **Screenshot comparison** of the summary panel's states.
 - **Running the suite in parallel shards** with merged reports as it grows.
-- **Mutation testing** of the domain rules, to generalize the gate self-test.
+- **Mutation testing** of the domain rules.
 - **Production monitoring:** approval rate, regenerate rate, invalid-citation rate.
 
 ## Project structure
@@ -217,7 +220,6 @@ tests/api/           API suite                     tests/ui/     UI suite (summa
 tests/smoke/         full-stack smoke              tests/support/ fixtures, mocks, page object, builders
 eval/                checks, labeled dataset, evaluation spec
 reporting/           release-gate summary + evaluation scorecard reporter
-scripts/             gate self-test
 regressions/         the intentional regression patch
 .github/             release-gate workflow, shared setup/evidence actions
 plan.md              approved spec and decision log

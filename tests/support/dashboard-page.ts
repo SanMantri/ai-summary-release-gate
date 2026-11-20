@@ -7,27 +7,22 @@ import type { Locator, Page } from '@playwright/test';
  */
 export class DashboardPage {
   readonly page: Page;
-  readonly ticketList: Locator;
   readonly ticketHeading: Locator;
   readonly summaryPanel: Locator;
 
   readonly generateSummaryButton: Locator;
   readonly retryButton: Locator;
-  readonly regenerateSummaryButton: Locator;
   readonly approveSummaryButton: Locator;
 
-  readonly generatingStatus: Locator;
   readonly summaryText: Locator;
   readonly citationLinks: Locator;
   readonly citationWarning: Locator;
   readonly generationErrorAlert: Locator;
   readonly insufficientInformationNotice: Locator;
-  readonly approvalErrorAlert: Locator;
   readonly approvedNotice: Locator;
 
   constructor(page: Page) {
     this.page = page;
-    this.ticketList = page.getByRole('navigation', { name: 'Tickets' });
     this.ticketHeading = page
       .getByRole('main', { name: 'Ticket' })
       .getByRole('heading', { level: 2 });
@@ -37,12 +32,8 @@ export class DashboardPage {
       this.summaryPanel.getByRole('button', { name, exact: true });
     this.generateSummaryButton = summaryButton('Generate summary');
     this.retryButton = summaryButton('Retry');
-    this.regenerateSummaryButton = summaryButton('Regenerate summary');
     this.approveSummaryButton = summaryButton('Approve summary');
 
-    this.generatingStatus = this.summaryPanel
-      .getByRole('status')
-      .filter({ hasText: 'Generating summary' });
     this.summaryText = this.summaryPanel.getByTestId('summary-text');
     this.citationLinks = this.summaryPanel
       .getByRole('list', { name: 'Citations' })
@@ -56,9 +47,6 @@ export class DashboardPage {
     this.insufficientInformationNotice = this.summaryPanel
       .getByRole('status')
       .filter({ hasText: 'Not enough information' });
-    this.approvalErrorAlert = this.summaryPanel
-      .getByRole('alert')
-      .filter({ hasText: 'Approval failed' });
     this.approvedNotice = this.summaryPanel
       .getByRole('status')
       .filter({ hasText: 'Summary approved' });
@@ -70,26 +58,12 @@ export class DashboardPage {
     await this.ticketHeading.waitFor();
   }
 
-  /** Switches tickets the way an agent does: through the ticket list, without a page reload. */
-  async switchToTicket(subject: string): Promise<void> {
-    await this.ticketList.getByRole('link', { name: subject }).click();
-  }
-
   async generateSummary(): Promise<void> {
     await this.generateSummaryButton.click();
   }
 
-  /** An impatient double click: the second click must not send a second summary request. */
-  async generateSummaryWithDoubleClick(): Promise<void> {
-    await this.generateSummaryButton.dblclick();
-  }
-
   async retryGeneration(): Promise<void> {
     await this.retryButton.click();
-  }
-
-  async regenerateSummary(): Promise<void> {
-    await this.regenerateSummaryButton.click();
   }
 
   async approveSummary(): Promise<void> {

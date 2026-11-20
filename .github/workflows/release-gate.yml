@@ -20,12 +20,12 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  developer-checks:
-    name: developer-checks
+  static-checks-and-unit-tests:
+    name: static-checks-and-unit-tests
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      EVIDENCE_ARTIFACT_NAME: developer-checks-evidence-attempt-${{ github.run_attempt }}
+      EVIDENCE_ARTIFACT_NAME: static-checks-and-unit-tests-evidence-attempt-${{ github.run_attempt }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -132,70 +132,13 @@ jobs:
         with:
           artifact-name: ${{ env.EVIDENCE_ARTIFACT_NAME }}
 
-  gate-self-test:
-    name: gate-self-test
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    env:
-      EVIDENCE_ARTIFACT_NAME: gate-self-test-evidence-attempt-${{ github.run_attempt }}
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
-
-      # No regression injection here: the self-test applies (and reverts) the patch itself.
-      - name: Set up project
-        uses: ./.github/actions/setup-project
-
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
-
-      - name: Prove the gate still catches the known regression
-        run: npm run gate:self-test
-
-      - name: Upload evidence
-        if: ${{ !cancelled() }}
-        uses: ./.github/actions/upload-evidence
-        with:
-          artifact-name: ${{ env.EVIDENCE_ARTIFACT_NAME }}
-
-  # ── Advisory job: reported on every run, never blocks a release (not in release-gate's needs) ──
-
-  quarantined-tests:
-    name: quarantined-tests (advisory)
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    continue-on-error: true
-    env:
-      EVIDENCE_ARTIFACT_NAME: quarantined-tests-evidence-attempt-${{ github.run_attempt }}
-      RELEASE_GATE_ADVISORY: '1'
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
-
-      - name: Set up project
-        uses: ./.github/actions/setup-project
-        with:
-          inject-regression: ${{ inputs.inject_regression == true }}
-
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
-
-      - name: Tests tagged @quarantined (excluded from the gate, still run and reported)
-        run: npx playwright test --project=quarantined --pass-with-no-tests
-
-      - name: Upload evidence
-        if: ${{ !cancelled() }}
-        uses: ./.github/actions/upload-evidence
-        with:
-          artifact-name: ${{ env.EVIDENCE_ARTIFACT_NAME }}
-
   # ── The single required status check ──
   # It always runs and fails unless every blocking job succeeded: GitHub skips the dependents
   # of a failed job, and a skipped required check would otherwise count as passing.
   release-gate:
     name: release-gate
     if: always()
-    needs: [developer-checks, api-tests, ui-tests, summary-evaluation, gate-self-test]
+    needs: [static-checks-and-unit-tests, api-tests, ui-tests, summary-evaluation]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

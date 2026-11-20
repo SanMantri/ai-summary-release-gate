@@ -9,24 +9,6 @@ export interface RecordedSummaryRequest {
   requestNumber: number;
 }
 
-export interface HeldSummaryResponse {
-  /**
-   * Delivers the held response. Resolves once it has been delivered — or once it is clear the
-   * page already abandoned the request (for example after switching tickets).
-   */
-  release(): Promise<void>;
-}
-
-type QueuedSummaryReply =
-  | { kind: 'respond'; response: MockSummaryResponse }
-  | { kind: 'network-error' }
-  | {
-      kind: 'hold';
-      response: MockSummaryResponse;
-      released: Promise<void>;
-      markSettled: () => void;
-    };
-
 const summaryEndpoint = /\/api\/tickets\/([^/]+)\/summary$/;
 
 /**
@@ -34,13 +16,12 @@ const summaryEndpoint = /\/api\/tickets\/([^/]+)\/summary$/;
  * test's browser context — so tests are isolated by construction and safe to run in parallel.
  *
  * The queue is strict: a request with no queued answer is recorded as unexpected and fails the
- * test when the fixture is torn down. That is how double submission is caught.
+ * test when the fixture is torn down, so an accidental extra request can never go unnoticed.
  */
 export class SummaryServiceMock {
-  readonly #queue: QueuedSummaryReply[] = [];
+  readonly #queue: MockSummaryResponse[] = [];
   readonly #requests: RecordedSummaryRequest[] = [];
   readonly #unexpectedRequests: RecordedSummaryRequest[] = [];
-  readonly #releaseHeldResponses: Array<() => void> = [];
 
   static async attachTo(page: Page): Promise<SummaryServiceMock> {
     const summaryServiceMock = new SummaryServiceMock();
@@ -52,35 +33,8 @@ export class SummaryServiceMock {
   respondWith(...responses: MockSummaryResponse[]): void {
     for (const response of responses) {
       assertMockHonoursSummaryContract(response);
-      this.#queue.push({ kind: 'respond', response });
+      this.#queue.push(response);
     }
-  }
-
-  /** Queues an answer that is only delivered when the test calls release(). */
-  holdNextResponse(response: MockSummaryResponse): HeldSummaryResponse {
-    assertMockHonoursSummaryContract(response);
-    let releaseResponse: () => void = () => undefined;
-    let markSettled: () => void = () => undefined;
-    const released = new Promise<void>((resolve) => (releaseResponse = resolve));
-    const settled = new Promise<void>((resolve) => (markSettled = resolve));
-
-    this.#releaseHeldResponses.push(releaseResponse);
-    this.#queue.push({ kind: 'hold', response, released, markSettled });
-    return {
-      release: async () => {
-        releaseResponse();
-        await settled;
-      },
-    };
-  }
-
-  /** The next summary request fails at the network level (no HTTP response at all). */
-  failNextRequestWithNetworkError(): void {
-    this.#queue.push({ kind: 'network-error' });
-  }
-
-  get requests(): readonly RecordedSummaryRequest[] {
-    return this.#requests;
   }
 
   requestsForTicket(ticketId: string): RecordedSummaryRequest[] {
@@ -89,11 +43,7 @@ export class SummaryServiceMock {
 
   /** Called by the fixture after each test. */
   async dispose(page: Page): Promise<void> {
-    for (const releaseHeldResponse of this.#releaseHeldResponses) {
-      releaseHeldResponse();
-    }
     await page.unrouteAll({ behavior: 'ignoreErrors' });
-
     if (this.#unexpectedRequests.length > 0) {
       const described = this.#unexpectedRequests
         .map(({ requestNumber, ticketId }) => `#${requestNumber} for ticket ${ticketId}`)
@@ -111,8 +61,8 @@ export class SummaryServiceMock {
     const recordedRequest = { ticketId, requestNumber: this.#requests.length + 1 };
     this.#requests.push(recordedRequest);
 
-    const nextReply = this.#queue.shift();
-    if (!nextReply) {
+    const nextResponse = this.#queue.shift();
+    if (!nextResponse) {
       this.#unexpectedRequests.push(recordedRequest);
       await route.fulfill({
         status: 500,
@@ -122,31 +72,10 @@ export class SummaryServiceMock {
       return;
     }
 
-    switch (nextReply.kind) {
-      case 'respond':
-        await deliver(route, nextReply.response);
-        return;
-      case 'network-error':
-        await route.abort('failed');
-        return;
-      case 'hold':
-        await nextReply.released;
-        try {
-          await deliver(route, nextReply.response);
-        } catch {
-          // The page abandoned this request before it was released; there is nothing to deliver.
-        } finally {
-          nextReply.markSettled();
-        }
-        return;
-    }
+    await route.fulfill({
+      status: nextResponse.httpStatus,
+      contentType: 'application/json',
+      body: JSON.stringify(nextResponse.body),
+    });
   }
-}
-
-function deliver(route: Route, response: MockSummaryResponse): Promise<void> {
-  return route.fulfill({
-    status: response.httpStatus,
-    contentType: 'application/json',
-    body: response.rawBody,
-  });
 }

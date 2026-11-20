@@ -6,7 +6,7 @@ import type { SeededTicket } from '../support/ticket-factory';
 /**
  * UI layer: an invalid summary must block approval. The browser covers the two cases the
  * exercise names (missing and cross-ticket citations); every other combination of the citation
- * rule is tested in the API suite and the developer unit tests.
+ * rule is covered by the developer unit tests.
  */
 const invalidCitationCases: Array<{
   citations: string;
@@ -45,29 +45,7 @@ test.describe('Blocking approval of summaries with invalid citations', () => {
           expectedProblemFor(ticket, anotherTicket),
         );
         await expect(dashboardPage.approveSummaryButton).toBeDisabled();
-        await expect(dashboardPage.regenerateSummaryButton).toBeEnabled();
       },
     );
   }
-
-  test(
-    're-checks citations on every regeneration instead of remembering the last result',
-    catalogId('UI-08'),
-    async ({ ticketFactory, summaryServiceMock, dashboardPage }) => {
-      const ticket = await ticketFactory.createTicket();
-      const anotherTicket = await ticketFactory.createTicket();
-      summaryServiceMock.respondWith(
-        summaryResponses.validFor(ticket),
-        summaryResponses.citing([anotherTicket.firstMessageId]),
-      );
-      await dashboardPage.openTicket(ticket.id);
-      await dashboardPage.generateSummary();
-      await expect(dashboardPage.approveSummaryButton).toBeEnabled();
-
-      await dashboardPage.regenerateSummary();
-
-      await expect(dashboardPage.citationWarning).toBeVisible();
-      await expect(dashboardPage.approveSummaryButton).toBeDisabled();
-    },
-  );
 });

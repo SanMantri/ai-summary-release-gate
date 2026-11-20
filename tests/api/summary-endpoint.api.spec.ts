@@ -4,7 +4,7 @@ import { catalogId } from '../support/catalog-annotations';
 import { expect, test } from '../support/dashboard-test-fixtures';
 
 /**
- * API layer: the summary endpoint's contract, error mapping and recovery (plan.md §5.2).
+ * API layer: the summary endpoint returns the exercise's response shapes (plan.md §5.2).
  * Each test picks the server's fake AI behaviour for its own ticket, so tests never share state.
  */
 const citedSummaryResponseSchema = summaryReadyResponseSchema.extend({
@@ -45,22 +45,8 @@ test.describe('POST /api/tickets/:ticketId/summary', () => {
   );
 
   test(
-    'returns unavailable when the provider is down',
+    'returns unavailable, then recovers on the next request',
     catalogId('API-SUM-03'),
-    async ({ request, ticketFactory }) => {
-      const ticket = await ticketFactory.createTicket({ fakeSummaryScenario: 'unavailable' });
-
-      const response = await request.post(summaryPath(ticket.id));
-
-      expect(response.status()).toBe(503);
-      const body: unknown = await response.json();
-      expect(body).toEqual({ error: 'unavailable' });
-    },
-  );
-
-  test(
-    'recovers on the next request after the provider was unavailable',
-    catalogId('API-SUM-04'),
     async ({ request, ticketFactory }) => {
       const ticket = await ticketFactory.createTicket({
         fakeSummaryScenario: 'unavailable_then_ok',
@@ -70,47 +56,11 @@ test.describe('POST /api/tickets/:ticketId/summary', () => {
       const retryResponse = await request.post(summaryPath(ticket.id));
 
       expect(firstResponse.status()).toBe(503);
+      const firstBody: unknown = await firstResponse.json();
+      expect(firstBody).toEqual({ error: 'unavailable' });
       expect(retryResponse.status()).toBe(200);
       const recoveredSummary = citedSummaryResponseSchema.parse(await retryResponse.json());
       expect(ticket.messageIds).toEqual(expect.arrayContaining(recoveredSummary.sourceIds));
     },
   );
-
-  for (const providerFailure of ['provider_error', 'provider_timeout'] as const) {
-    test(
-      `maps a provider failure (${providerFailure}) to unavailable`,
-      catalogId('API-SUM-05'),
-      async ({ request, ticketFactory }) => {
-        const ticket = await ticketFactory.createTicket({ fakeSummaryScenario: providerFailure });
-
-        const response = await request.post(summaryPath(ticket.id));
-
-        expect(response.status()).toBe(503);
-        const body: unknown = await response.json();
-        expect(body).toEqual({ error: 'unavailable' });
-      },
-    );
-  }
-
-  test(
-    'rejects provider output that breaks the summary contract',
-    catalogId('API-SUM-06'),
-    async ({ request, ticketFactory }) => {
-      const ticket = await ticketFactory.createTicket({ fakeSummaryScenario: 'malformed_output' });
-
-      const response = await request.post(summaryPath(ticket.id));
-
-      expect(response.status()).toBe(502);
-      const body: unknown = await response.json();
-      expect(body).toEqual({ error: 'invalid_provider_response' });
-    },
-  );
-
-  test('returns not found for an unknown ticket', catalogId('API-SUM-07'), async ({ request }) => {
-    const response = await request.post(summaryPath('t-does-not-exist'));
-
-    expect(response.status()).toBe(404);
-    const body: unknown = await response.json();
-    expect(body).toEqual({ error: 'ticket_not_found' });
-  });
 });

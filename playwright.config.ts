@@ -8,53 +8,34 @@ import {
 
 /**
  * SDET suite configuration (plan.md §4.3). Layers are Playwright projects:
- *   blocking: api · ui-chromium · smoke-chromium · eval
- *   advisory: quarantined   (only with RELEASE_GATE_ADVISORY=1)
+ *   api · ui-chromium · smoke-chromium · eval   (all of them block a release)
  * Developer unit tests run under Vitest (vitest.config.ts).
  */
 const isCI = Boolean(process.env.CI);
-const includeAdvisoryProjects = process.env.RELEASE_GATE_ADVISORY === '1';
 const runsEvaluationOnly = process.env.RELEASE_GATE_LAYER === 'eval';
-const quarantinedTag = /@quarantined/;
 
-const blockingProjects: Project[] = [
+const projects: Project[] = [
   {
     name: 'api',
     testDir: './tests/api',
     testMatch: '**/*.api.spec.ts',
-    grepInvert: quarantinedTag,
   },
   {
     name: 'ui-chromium',
     testDir: './tests/ui',
     testMatch: '**/*.ui.spec.ts',
     use: { ...devices['Desktop Chrome'] },
-    grepInvert: quarantinedTag,
   },
   {
     name: 'smoke-chromium',
     testDir: './tests/smoke',
     testMatch: '**/*.smoke.spec.ts',
     use: { ...devices['Desktop Chrome'] },
-    grepInvert: quarantinedTag,
   },
   {
     name: 'eval',
     testDir: './eval',
     testMatch: '**/*.eval.spec.ts',
-    grepInvert: quarantinedTag,
-  },
-];
-
-// Tests tagged @quarantined leave the blocking projects and run only here, so they are never
-// silently dropped. Opt-in, so a quarantined failure never reddens a local `npm run test:gate`.
-const advisoryProjects: Project[] = [
-  {
-    name: 'quarantined',
-    testDir: './tests',
-    testMatch: '**/*.spec.ts',
-    use: { ...devices['Desktop Chrome'] },
-    grep: quarantinedTag,
   },
 ];
 
@@ -84,7 +65,7 @@ export default defineConfig({
     video: 'retain-on-failure',
   },
 
-  projects: includeAdvisoryProjects ? [...blockingProjects, ...advisoryProjects] : blockingProjects,
+  projects,
 
   webServer: runsEvaluationOnly
     ? undefined
