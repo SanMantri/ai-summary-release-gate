@@ -202,6 +202,18 @@ if (spawnSync('git', ['diff', '--quiet', '--', patchedFile]).status !== 0) {
   console.error(`${patchedFile} has local changes; commit or stash them before the self-test.`);
   process.exit(1);
 }
+const regressionAlreadyPresent =
+  spawnSync('git', ['apply', '--check', '-R', patchPath], { stdio: 'ignore' }).status === 0;
+if (regressionAlreadyPresent) {
+  const message =
+    'The intentional regression is already present in this code, so the self-test cannot inject ' +
+    'it. This code must not be released; the other release-gate jobs show which tests catch it.';
+  console.error(message);
+  if (process.env.GITHUB_STEP_SUMMARY) {
+    appendFileSync(process.env.GITHUB_STEP_SUMMARY, `## Gate self-test\n\n⚠️ ${message}\n`);
+  }
+  process.exit(1);
+}
 if (git('apply', '--check', patchPath) !== 0) {
   console.error(`${patchPath} no longer applies cleanly; regenerate it (see README).`);
   process.exit(1);
