@@ -122,9 +122,71 @@ jobs:
         with:
           artifact-name: ${{ env.EVIDENCE_ARTIFACT_NAME }}
 
-  # The single required status check. It always runs and fails unless every blocking job
-  # succeeded: GitHub skips the dependents of a failed job, and a skipped required check
-  # would otherwise count as passing.
+  # ── Advisory jobs: reported on every run, never block a release (not in release-gate's needs) ──
+
+  cross-browser-ui:
+    name: cross-browser-ui (${{ matrix.browser }}, advisory)
+    needs: developer-checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [firefox, webkit]
+    env:
+      EVIDENCE_ARTIFACT_NAME: cross-browser-ui-${{ matrix.browser }}-evidence-attempt-${{ github.run_attempt }}
+      RELEASE_GATE_ADVISORY: '1'
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up project
+        uses: ./.github/actions/setup-project
+
+      - name: Install ${{ matrix.browser }}
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+
+      - name: UI tests on ${{ matrix.browser }} (advisory)
+        run: npx playwright test --project=ui-${{ matrix.browser }}
+
+      - name: Upload evidence
+        if: ${{ !cancelled() }}
+        uses: ./.github/actions/upload-evidence
+        with:
+          artifact-name: ${{ env.EVIDENCE_ARTIFACT_NAME }}
+
+  quarantined-tests:
+    name: quarantined-tests (advisory)
+    needs: developer-checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+    env:
+      EVIDENCE_ARTIFACT_NAME: quarantined-tests-evidence-attempt-${{ github.run_attempt }}
+      RELEASE_GATE_ADVISORY: '1'
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up project
+        uses: ./.github/actions/setup-project
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Tests tagged @quarantined (excluded from the gate, still run and reported)
+        run: npx playwright test --project=quarantined --pass-with-no-tests
+
+      - name: Upload evidence
+        if: ${{ !cancelled() }}
+        uses: ./.github/actions/upload-evidence
+        with:
+          artifact-name: ${{ env.EVIDENCE_ARTIFACT_NAME }}
+
+  # ── The single required status check ──
+  # It always runs and fails unless every blocking job succeeded: GitHub skips the dependents
+  # of a failed job, and a skipped required check would otherwise count as passing.
   release-gate:
     name: release-gate
     if: always()

@@ -1,0 +1,43 @@
+name: nightly-advisory
+
+# Advisory only: surfaces order dependence and races by repeating the suite under heavy
+# parallelism. It never blocks a release (plan.md §7.5).
+on:
+  schedule:
+    - cron: '30 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-advisory
+  cancel-in-progress: false
+
+jobs:
+  parallel-stress:
+    name: parallel-stress (advisory)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      EVIDENCE_ARTIFACT_NAME: parallel-stress-evidence-attempt-${{ github.run_attempt }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up project
+        uses: ./.github/actions/setup-project
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Repeat API, UI and smoke tests 10 times with 6 workers
+        run: >-
+          npx playwright test --project=api --project=ui-chromium --project=smoke-chromium
+          --repeat-each=10 --workers=6
+
+      - name: Upload evidence
+        if: ${{ !cancelled() }}
+        uses: ./.github/actions/upload-evidence
+        with:
+          artifact-name: ${{ env.EVIDENCE_ARTIFACT_NAME }}

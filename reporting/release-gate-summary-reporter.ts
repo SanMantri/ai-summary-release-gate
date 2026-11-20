@@ -34,7 +34,7 @@ interface FailureDetail {
   catalogId: string;
   location: string;
   outcome: 'failed' | 'flaky';
-  firstErrorLine: string;
+  errorSummary: string;
 }
 
 /** The subset of the evaluation record (eval/evaluate-summary-example.ts) this reporter reads. */
@@ -124,11 +124,11 @@ class ReleaseGateSummaryReporter implements Reporter {
       lines.push(
         `### Failures (${failures.length})`,
         '',
-        '| Layer | Catalog ID | Test | Location | Outcome | First error line |',
+        '| Layer | Catalog ID | Test | Location | Outcome | Error |',
         '|---|---|---|---|---|---|',
         ...failures.map(
           (failure) =>
-            `| ${failure.layer} | ${failure.catalogId} | ${escapeTableCell(failure.title)} | \`${failure.location}\` | ${failure.outcome} | ${escapeTableCell(failure.firstErrorLine)} |`,
+            `| ${failure.layer} | ${failure.catalogId} | ${escapeTableCell(failure.title)} | \`${failure.location}\` | ${failure.outcome} | ${escapeTableCell(failure.errorSummary)} |`,
         ),
         '',
         artifactName
@@ -149,16 +149,22 @@ class ReleaseGateSummaryReporter implements Reporter {
         test.annotations.find((annotation) => annotation.type === 'catalog-id')?.description ?? '—',
       location: `${relative(this.#rootDirectory, test.location.file)}:${test.location.line}`,
       outcome,
-      firstErrorLine: firstErrorLineOf(failingResult),
+      errorSummary: errorSummaryOf(failingResult),
     };
   }
 }
 
-function firstErrorLineOf(result: TestResult | undefined): string {
+/** The error's headline plus its Expected/Received lines — enough to triage without the report. */
+function errorSummaryOf(result: TestResult | undefined): string {
   const message = result?.errors[0]?.message ?? '(no error message)';
   // eslint-disable-next-line no-control-regex -- strip terminal colour codes from Playwright errors
   const plainMessage = message.replace(/\u001b\[[0-9;]*m/g, '');
-  return plainMessage.split('\n').find((line) => line.trim().length > 0) ?? plainMessage;
+  const lines = plainMessage
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+  const comparison = lines.filter((line) => /^(Expected|Received)\b/.test(line)).slice(0, 2);
+  return [lines[0] ?? plainMessage, ...comparison].join(' · ');
 }
 
 function recordedEvaluationsOf(test: TestCase): RecordedEvaluation[] {
