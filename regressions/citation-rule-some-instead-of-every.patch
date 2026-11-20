@@ -1,0 +1,13 @@
+diff --git a/src/domain/citation-validation.ts b/src/domain/citation-validation.ts
+index 34c1f4b..e5068b5 100644
+--- a/src/domain/citation-validation.ts
++++ b/src/domain/citation-validation.ts
+@@ -29,7 +29,7 @@ export function validateCitations(
+     .filter((messageId) => !ticketMessageIds.has(messageId))
+     .map((messageId) => ({ code: 'citation_not_in_ticket', messageId }));
+ 
+-  const everyCitationBelongsToTicket = uniqueSourceIds.every((messageId) =>
++  const everyCitationBelongsToTicket = uniqueSourceIds.some((messageId) =>
+     ticketMessageIds.has(messageId),
+   );
+ 

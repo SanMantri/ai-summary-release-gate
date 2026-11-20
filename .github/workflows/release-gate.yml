@@ -5,6 +5,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      inject_regression:
+        description: Apply the intentional regression (citation rule uses some instead of every) and watch the gate fail
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -27,6 +32,8 @@ jobs:
 
       - name: Set up project
         uses: ./.github/actions/setup-project
+        with:
+          inject-regression: ${{ inputs.inject_regression == true }}
 
       - name: Type-check
         run: npm run typecheck
@@ -62,6 +69,8 @@ jobs:
 
       - name: Set up project
         uses: ./.github/actions/setup-project
+        with:
+          inject-regression: ${{ inputs.inject_regression == true }}
 
       - name: API tests (contract, error mapping, approval enforcement)
         run: npx playwright test --project=api
@@ -85,6 +94,8 @@ jobs:
 
       - name: Set up project
         uses: ./.github/actions/setup-project
+        with:
+          inject-regression: ${{ inputs.inject_regression == true }}
 
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
@@ -112,9 +123,38 @@ jobs:
 
       - name: Set up project
         uses: ./.github/actions/setup-project
+        with:
+          inject-regression: ${{ inputs.inject_regression == true }}
 
       - name: Deterministic summary evaluation (labeled synthetic examples)
         run: npx playwright test --project=eval
+
+      - name: Upload evidence
+        if: ${{ !cancelled() }}
+        uses: ./.github/actions/upload-evidence
+        with:
+          artifact-name: ${{ env.EVIDENCE_ARTIFACT_NAME }}
+
+  gate-self-test:
+    name: gate-self-test
+    needs: developer-checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      EVIDENCE_ARTIFACT_NAME: gate-self-test-evidence-attempt-${{ github.run_attempt }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      # No regression injection here: the self-test applies (and reverts) the patch itself.
+      - name: Set up project
+        uses: ./.github/actions/setup-project
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Prove the gate still catches the known regression
+        run: npm run gate:self-test
 
       - name: Upload evidence
         if: ${{ !cancelled() }}
@@ -143,6 +183,8 @@ jobs:
 
       - name: Set up project
         uses: ./.github/actions/setup-project
+        with:
+          inject-regression: ${{ inputs.inject_regression == true }}
 
       - name: Install ${{ matrix.browser }}
         run: npx playwright install --with-deps ${{ matrix.browser }}
@@ -171,6 +213,8 @@ jobs:
 
       - name: Set up project
         uses: ./.github/actions/setup-project
+        with:
+          inject-regression: ${{ inputs.inject_regression == true }}
 
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
@@ -190,7 +234,7 @@ jobs:
   release-gate:
     name: release-gate
     if: always()
-    needs: [developer-checks, api-tests, ui-tests, summary-evaluation]
+    needs: [developer-checks, api-tests, ui-tests, summary-evaluation, gate-self-test]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

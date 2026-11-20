@@ -1,5 +1,13 @@
 name: Set up project
-description: Install Node.js from .nvmrc and the project's locked dependencies.
+description: >
+  Install Node.js from .nvmrc and the project's locked dependencies. Optionally inject the
+  intentional regression (manual workflow runs only) to observe the gate fail.
+
+inputs:
+  inject-regression:
+    description: Apply regressions/citation-rule-some-instead-of-every.patch before running checks.
+    required: false
+    default: 'false'
 
 runs:
   using: composite
@@ -13,3 +21,11 @@ runs:
     - name: Install locked dependencies
       shell: bash
       run: npm ci
+
+    - name: Inject the intentional regression
+      if: inputs.inject-regression == 'true'
+      shell: bash
+      run: |
+        git apply regressions/citation-rule-some-instead-of-every.patch
+        echo "::warning title=Intentional regression injected::regressions/citation-rule-some-instead-of-every.patch was applied — this run is expected to fail."
+        echo '> ⚠️ **Intentional regression injected:** `regressions/citation-rule-some-instead-of-every.patch` (citation rule uses `some` instead of `every`). This job is expected to fail.' >> "$GITHUB_STEP_SUMMARY"
