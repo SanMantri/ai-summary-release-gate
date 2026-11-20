@@ -11,7 +11,6 @@ Everything runs on synthetic data, with no credentials, paid services or externa
   - [Its run](https://github.com/SanMantri/ai-summary-release-gate/actions/runs/44750331645) fails the unit, API and UI layers, each on its mixed-citation test.
   - The evaluation stays green.
 - ❌ [Manual run with `inject_regression`](https://github.com/SanMantri/ai-summary-release-gate/actions/runs/44750592338). Same verdicts, except `gate-self-test` passes because it starts from clean code.
-- ✅ [Nightly parallel stress run](https://github.com/SanMantri/ai-summary-release-gate/actions/runs/44743088081). The API, UI and smoke suites, repeated 10 times on 6 workers, with no flaky tests.
 
 ---
 
@@ -128,7 +127,7 @@ A change can't be released if any of these is true:
 6. The gate self-test can't show that the known regression is caught.
 7. A test is focused (`.only`) or skipped outside the quarantine process.
 
-**Advisory only (reported, never blocking):** quarantined tests and the nightly parallel-stress run. The gate runs the UI in Chromium only. The risks it guards are citation and approval-state logic, which don't change between browser engines, so extra browsers would add CI time without adding protection.
+**Advisory only (reported, never blocking):** quarantined tests. The gate runs the UI in Chromium only. The risks it guards are citation and approval-state logic, which don't change between browser engines, so extra browsers would add CI time without adding protection.
 
 How the workflow enforces this:
 - **One required check.** `release-gate` is the only check that branch protection requires. It always runs, and it fails unless every blocking job *succeeded*. This closes a common hole: GitHub skips the jobs after a failed job, and a skipped required check counts as passing.
@@ -220,7 +219,7 @@ eval/                checks, labeled dataset, evaluation spec
 reporting/           release-gate summary + evaluation scorecard reporter
 scripts/             gate self-test
 regressions/         the intentional regression patch
-.github/             release-gate and nightly-advisory workflows, shared setup/evidence actions
+.github/             release-gate workflow, shared setup/evidence actions
 plan.md              approved spec and decision log
 docs/test-strategy.md
 ```

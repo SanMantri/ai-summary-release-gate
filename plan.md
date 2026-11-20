@@ -17,7 +17,7 @@ Every phase was validated locally and by a green CI run before the next one star
 | 5 API suite | 23 tests; 115/115 under `--repeat-each=5 --workers=8`; probe fails exactly API-APR-02 (mixed) | — |
 | 6 UI + smoke | 19 tests; 95/95 under `--repeat-each=5 --workers=8`; probes: `every → some` fails exactly UI-05, removing the stale-response guard fails UI-06 every time | UI-10 boundary check exposed that an installed clock keeps flowing → clock is now paused before the click |
 | 7 Evaluation | 29 tests; product regression leaves eval green; a grounding-check bug surfaces as a false accept; importing `src/` from `eval/` fails lint | — |
-| 8 CI gate | All blocking + advisory jobs green on Linux; nightly stress (10× repeat, 6 workers) green | Firefox/WebKit advisory jobs were built and passed in CI, then removed on review (decision 24) |
+| 8 CI gate | All blocking + advisory jobs green on Linux; nightly stress (10× repeat, 6 workers) green | Firefox/WebKit advisory jobs and the nightly stress workflow were built and passed in CI, then removed on review (decisions 24–25) |
 | 9 Regression | Gate self-test verified locally and in CI; demo PR and manual `inject_regression` run are red for the expected reasons | The self-test exposed Vitest truncating interpolated test names → `taskTitleValueFormatTruncate: 0`. The first demo-PR run showed chained jobs hiding later layers' verdicts → decision 23 |
 | 10 Documentation | README and `docs/test-strategy.md`; fresh-clone walkthrough | — |
 > GitHub repository (to be created): `ai-summary-release-gate`
@@ -70,7 +70,7 @@ Every phase was validated locally and by a green CI run before the next one star
 | Missing or cross-ticket citations stay ineligible for approval | UI-05, UI-08, API-APR-02, DEV-01 |
 | Summary wording can vary | No assertion depends on summary wording; eval checks are property-based (§6) |
 | Reusable fixtures | `tests/support/*` (§4.4) |
-| Safe to run in parallel | Per-test tickets, per-context route mocks, nightly stress run (§4.6) |
+| Safe to run in parallel | Per-test tickets, per-context route mocks, `fullyParallel` with 4 CI workers (§4.6) |
 | Show the line between UI and service/evaluation checks | Layer map (§4.1), Playwright projects (§4.3), `docs/test-strategy.md` |
 | Deterministic eval with acceptable and unacceptable synthetic examples | `eval/` (§6) |
 | Source attribution + one additional risk | `source-attribution` + `grounded-specifics` checks (§6.1) |
@@ -266,7 +266,7 @@ Rules:
 ├─ regressions/ citation-rule-some-instead-of-every.patch
 ├─ .github/
 │  ├─ actions/setup-project/action.yml
-│  └─ workflows/ release-gate.yml, nightly-advisory.yml
+│  └─ workflows/ release-gate.yml
 ├─ docs/test-strategy.md
 ├─ playwright.config.ts, vitest.config.ts, vite.config.ts, tsconfig.json, eslint.config.js
 ├─ .nvmrc, .prettierrc, .gitignore, package.json
@@ -351,7 +351,7 @@ insufficientInformationNotice · approvalErrorAlert · approvedNotice
 - `fullyParallel: true`; each test creates its own tickets with server-assigned unique IDs.
 - Route mocks live in each test's own browser context.
 - Fake provider state is keyed by ticket ID; the only shared data is read-only.
-- **Proof:** CI runs with multiple workers; the nightly advisory run uses `--repeat-each=10 --workers=100%`; the concurrent-approval API test (API-APR-06) asserts the server's own race behaviour.
+- **Proof:** CI runs with 4 workers and `fullyParallel`; each suite was stress-tested with `--repeat-each=5` while it was built. (A nightly stress workflow was removed on review, decision 25.)
 
 ---
 
@@ -540,7 +540,7 @@ A change cannot be released if any of the following is true:
 6. The gate self-test cannot show that the known regression is caught.
 7. A test is focused (`.only`) or skipped outside the quarantine process.
 
-Advisory (reported, never blocking): quarantined tests, nightly parallel-stress results. UI runs on Chromium only (decision 24).
+Advisory (reported, never blocking): quarantined tests. UI runs on Chromium only (decision 24).
 
 ### 7.3 Flake and quarantine policy
 
@@ -563,9 +563,9 @@ Advisory (reported, never blocking): quarantined tests, nightly parallel-stress 
 
 Artifact retention: 14 days. Upload steps use `if: ${{ !cancelled() }}`.
 
-### 7.5 Nightly advisory workflow (`nightly-advisory.yml`)
+### 7.5 Nightly advisory workflow (removed)
 
-Scheduled daily and manually runnable. Runs `api` + `ui-chromium` with `--repeat-each=10 --workers=100%` to surface order dependence and races. Reports, never blocks.
+*Removed on review (decision 25).* It ran the API, UI and smoke suites 10× on 6 workers daily to surface order dependence and races.
 
 ### 7.6 Hardening
 
@@ -715,6 +715,7 @@ Each phase ends with a commit (Conventional Commits) and its exit criteria met. 
 | 22 | Install scripts of `esbuild` and `fsevents` explicitly denied (`allowScripts`) | Neither is needed (binaries come from platform packages); denying is the safer supply-chain default and makes the choice visible |
 | 23 | Gate layers run as independent parallel jobs instead of waiting for `developer-checks` | The first demo-PR run showed the chained design skipping API, UI and evaluation jobs after a unit failure: the gate still blocked, but the run hid every other layer's verdict. Parallel jobs give the investigator the full picture in one run and shorten the critical path; the cost is extra CI minutes when static checks fail |
 | 24 | No cross-browser runs; the UI layer runs on Chromium only | Decided on review: the gated risks (citation validity, approval state, stale responses) are application logic that does not vary by browser engine; extra engines added CI jobs without adding protection |
+| 25 | No nightly stress workflow | Decided on review: every suite was already stress-tested with `--repeat-each=5` while it was built, and each blocking run uses 4 parallel workers; a daily advisory job added CI cost without guarding a release |
 
 ---
 

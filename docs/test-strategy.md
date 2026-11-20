@@ -34,7 +34,6 @@ UI tests fake the summary service with `page.route` at the boundary the browser 
 - **The mock queue is strict.** A request with no queued answer fails the test, which is how double submission is caught.
 - **It's proven, not assumed:**
   - CI runs 4 workers with `fullyParallel`
-  - the nightly job repeats the suite 10 times on 6 workers
   - every phase was checked with `--repeat-each=5`
   - API-APR-06 sends two approvals of the same ticket at the same moment and expects exactly one `200` and one `409`
 
