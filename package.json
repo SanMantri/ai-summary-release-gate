@@ -30,7 +30,7 @@
     "test:smoke": "playwright test --project=smoke-chromium",
     "test:eval": "RELEASE_GATE_LAYER=eval playwright test --project=eval",
     "test:gate": "npm run check:static && npm run test:unit && playwright test",
-    "test:advisory": "RELEASE_GATE_ADVISORY=1 playwright test --project=ui-firefox --project=ui-webkit --project=quarantined --pass-with-no-tests",
+    "test:advisory": "RELEASE_GATE_ADVISORY=1 playwright test --project=quarantined --pass-with-no-tests",
     "report": "playwright show-report",
     "regression:apply": "git apply regressions/citation-rule-some-instead-of-every.patch",
     "regression:revert": "git apply -R regressions/citation-rule-some-instead-of-every.patch",

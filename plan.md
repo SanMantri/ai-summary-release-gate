@@ -17,7 +17,7 @@ Every phase was validated locally and by a green CI run before the next one star
 | 5 API suite | 23 tests; 115/115 under `--repeat-each=5 --workers=8`; probe fails exactly API-APR-02 (mixed) | — |
 | 6 UI + smoke | 19 tests; 95/95 under `--repeat-each=5 --workers=8`; probes: `every → some` fails exactly UI-05, removing the stale-response guard fails UI-06 every time | UI-10 boundary check exposed that an installed clock keeps flowing → clock is now paused before the click |
 | 7 Evaluation | 29 tests; product regression leaves eval green; a grounding-check bug surfaces as a false accept; importing `src/` from `eval/` fails lint | — |
-| 8 CI gate | All blocking + advisory jobs green on Linux, including Firefox and WebKit; nightly stress (10× repeat, 6 workers) green | Firefox cannot launch inside the local command sandbox; validated in CI instead |
+| 8 CI gate | All blocking + advisory jobs green on Linux; nightly stress (10× repeat, 6 workers) green | Firefox/WebKit advisory jobs were built and passed in CI, then removed on review (decision 24) |
 | 9 Regression | Gate self-test verified locally and in CI; demo PR and manual `inject_regression` run are red for the expected reasons | The self-test exposed Vitest truncating interpolated test names → `taskTitleValueFormatTruncate: 0`. The first demo-PR run showed chained jobs hiding later layers' verdicts → decision 23 |
 | 10 Documentation | README and `docs/test-strategy.md`; fresh-clone walkthrough | — |
 > GitHub repository (to be created): `ai-summary-release-gate`
@@ -282,7 +282,6 @@ Rules:
 | `ui-chromium` | `tests/ui/**/*.ui.spec.ts` | Chromium | blocking |
 | `smoke-chromium` | `tests/smoke/**/*.smoke.spec.ts` | Chromium | blocking |
 | `eval` | `eval/**/*.eval.spec.ts` | none | blocking |
-| `ui-firefox`, `ui-webkit` | `tests/ui/**` | Firefox / WebKit | advisory |
 | `quarantined` | any test tagged `@quarantined` | Chromium | advisory |
 
 All blocking projects use `grepInvert: /@quarantined/`. The `webServer` (built UI + API with `ENABLE_TEST_SEEDING=1`, `PROVIDER_TIMEOUT_MS=300`) starts for every project except an eval-only run.
@@ -510,8 +509,7 @@ ui-tests (+ smoke) ────────────────────�
 summary-evaluation ────────────────────────────────────────────┤
 gate-self-test ────────────────────────────────────────────────┘
 
-cross-browser-ui (Firefox, WebKit)  ─ advisory: continue-on-error, not a dependency of release-gate
-quarantined-tests                   ─ advisory
+quarantined-tests  ─ advisory: continue-on-error, not a dependency of release-gate
 ```
 
 All layers run in parallel (decision 23): one red run shows every layer's verdict.
@@ -524,7 +522,6 @@ All layers run in parallel (decision 23): one red run shows every layer's verdic
 | `summary-evaluation` | `--project=eval` | yes |
 | `gate-self-test` | applies the regression patch and verifies the expected tests fail (§8) | yes |
 | `release-gate` | `if: always()`; fails unless every dependency's result is `success` | **the required check** |
-| `cross-browser-ui` | `--project=ui-firefox` / `ui-webkit` (matrix) | no (advisory) |
 | `quarantined-tests` | `--project=quarantined` | no (advisory) |
 
 **Why the aggregator uses `if: always()`:** when a job fails, GitHub skips its dependents, and a skipped required check counts as passing. The aggregator inspects `needs.*.result` explicitly so a skip can never open the gate.
@@ -543,7 +540,7 @@ A change cannot be released if any of the following is true:
 6. The gate self-test cannot show that the known regression is caught.
 7. A test is focused (`.only`) or skipped outside the quarantine process.
 
-Advisory (reported, never blocking): Firefox/WebKit results, quarantined tests, nightly parallel-stress results.
+Advisory (reported, never blocking): quarantined tests, nightly parallel-stress results. UI runs on Chromium only (decision 24).
 
 ### 7.3 Flake and quarantine policy
 
@@ -644,7 +641,7 @@ npm run regression:revert     # git apply -R …
 | `npm run test:unit` | Developer unit tests (Vitest) |
 | `npm run test:api` / `test:ui` / `test:smoke` / `test:eval` | One layer each |
 | `npm run test:gate` | Every blocking check, in gate order |
-| `npm run test:advisory` | Firefox, WebKit, quarantined |
+| `npm run test:advisory` | Quarantined tests |
 | `npm run regression:apply` / `regression:revert` | Intentional regression |
 | `npm run gate:self-test` | Prove the gate catches the regression |
 | `npm run report` | Open the last HTML report |
@@ -717,6 +714,7 @@ Each phase ends with a commit (Conventional Commits) and its exit criteria met. 
 | 21 | Lock file maintained with npm ≥ 11.20 (`devEngines`, `onFail: warn`); `npm ci` in CI is the hard check | Older npm drops other platforms' optional dependencies from the lock file, which broke the first CI run. `onFail: error` was tried and rejected: it blocks every npm command (including `npm run`) for anyone on an older npm |
 | 22 | Install scripts of `esbuild` and `fsevents` explicitly denied (`allowScripts`) | Neither is needed (binaries come from platform packages); denying is the safer supply-chain default and makes the choice visible |
 | 23 | Gate layers run as independent parallel jobs instead of waiting for `developer-checks` | The first demo-PR run showed the chained design skipping API, UI and evaluation jobs after a unit failure: the gate still blocked, but the run hid every other layer's verdict. Parallel jobs give the investigator the full picture in one run and shorten the critical path; the cost is extra CI minutes when static checks fail |
+| 24 | No cross-browser runs; the UI layer runs on Chromium only | Decided on review: the gated risks (citation validity, approval state, stale responses) are application logic that does not vary by browser engine; extra engines added CI jobs without adding protection |
 
 ---
 

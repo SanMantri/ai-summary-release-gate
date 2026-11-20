@@ -84,7 +84,7 @@ The demo comes with five synthetic tickets, one for each state:
 | `npm run test:smoke` | Full-stack smoke tests: nothing faked in the browser | yes |
 | `npm run test:eval` | Deterministic summary evaluation | yes |
 | `npm run gate:self-test` | Proves the gate still catches the known regression | yes |
-| `npm run test:advisory` | UI tests on Firefox and WebKit, plus quarantined tests (first run `npx playwright install firefox webkit`) | no |
+| `npm run test:advisory` | Tests tagged `@quarantined` (excluded from the gate, still run) | no |
 | `npm run regression:apply` / `regression:revert` | Inject or remove the intentional regression | — |
 | `npm run report` | Open the last Playwright HTML report | — |
 | `npm start` / `npm run dev` | Demo server / dev server with reload | — |
@@ -128,7 +128,7 @@ A change can't be released if any of these is true:
 6. The gate self-test can't show that the known regression is caught.
 7. A test is focused (`.only`) or skipped outside the quarantine process.
 
-**Advisory only (reported, never blocking):** Firefox and WebKit results, quarantined tests, and the nightly parallel-stress run.
+**Advisory only (reported, never blocking):** quarantined tests and the nightly parallel-stress run. The gate runs the UI in Chromium only. The risks it guards are citation and approval-state logic, which don't change between browser engines, so extra browsers would add CI time without adding protection.
 
 How the workflow enforces this:
 - **One required check.** `release-gate` is the only check that branch protection requires. It always runs, and it fails unless every blocking job *succeeded*. This closes a common hole: GitHub skips the jobs after a failed job, and a skipped required check counts as passing.

@@ -9,7 +9,7 @@ import {
 /**
  * SDET suite configuration (plan.md §4.3). Layers are Playwright projects:
  *   blocking: api · ui-chromium · smoke-chromium · eval
- *   advisory: ui-firefox · ui-webkit · quarantined   (only with RELEASE_GATE_ADVISORY=1)
+ *   advisory: quarantined   (only with RELEASE_GATE_ADVISORY=1)
  * Developer unit tests run under Vitest (vitest.config.ts).
  */
 const isCI = Boolean(process.env.CI);
@@ -46,21 +46,9 @@ const blockingProjects: Project[] = [
   },
 ];
 
+// Tests tagged @quarantined leave the blocking projects and run only here, so they are never
+// silently dropped. Opt-in, so a quarantined failure never reddens a local `npm run test:gate`.
 const advisoryProjects: Project[] = [
-  {
-    name: 'ui-firefox',
-    testDir: './tests/ui',
-    testMatch: '**/*.ui.spec.ts',
-    use: { ...devices['Desktop Firefox'] },
-    grepInvert: quarantinedTag,
-  },
-  {
-    name: 'ui-webkit',
-    testDir: './tests/ui',
-    testMatch: '**/*.ui.spec.ts',
-    use: { ...devices['Desktop Safari'] },
-    grepInvert: quarantinedTag,
-  },
   {
     name: 'quarantined',
     testDir: './tests',
