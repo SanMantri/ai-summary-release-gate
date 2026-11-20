@@ -29,7 +29,7 @@ export function validateCitations(
     .filter((messageId) => !ticketMessageIds.has(messageId))
     .map((messageId) => ({ code: 'citation_not_in_ticket', messageId }));
 
-  const everyCitationBelongsToTicket = uniqueSourceIds.every((messageId) =>
+  const everyCitationBelongsToTicket = uniqueSourceIds.some((messageId) =>
     ticketMessageIds.has(messageId),
   );
 
