@@ -6,11 +6,11 @@ Everything runs on synthetic data, with no credentials, paid services or externa
 
 **Evidence that the gate works** (CI runs on this repository):
 
-- ✅ [Green release gate on `main`](https://github.com/SanMantri/ai-summary-release-gate/actions/runs/44744247060). All 5 blocking jobs and all 3 advisory jobs (Firefox, WebKit, quarantine) pass.
+- ✅ [Green release gate on `main`](https://github.com/SanMantri/ai-summary-release-gate/actions/runs/44750317727). All 5 blocking jobs and the advisory quarantine job pass.
 - ❌ [Pull request #1: intentional regression, release blocked](https://github.com/SanMantri/ai-summary-release-gate/pull/1).
-  - [Its run](https://github.com/SanMantri/ai-summary-release-gate/actions/runs/44744261415) fails the unit, API and UI layers, each on its mixed-citation test.
+  - [Its run](https://github.com/SanMantri/ai-summary-release-gate/actions/runs/44750331645) fails the unit, API and UI layers, each on its mixed-citation test.
   - The evaluation stays green.
-- ❌ [Manual run with `inject_regression`](https://github.com/SanMantri/ai-summary-release-gate/actions/runs/44744512587). Same verdicts, except `gate-self-test` passes because it starts from clean code.
+- ❌ [Manual run with `inject_regression`](https://github.com/SanMantri/ai-summary-release-gate/actions/runs/44750592338). Same verdicts, except `gate-self-test` passes because it starts from clean code.
 - ✅ [Nightly parallel stress run](https://github.com/SanMantri/ai-summary-release-gate/actions/runs/44743088081). The API, UI and smoke suites, repeated 10 times on 6 workers, with no flaky tests.
 
 ---
