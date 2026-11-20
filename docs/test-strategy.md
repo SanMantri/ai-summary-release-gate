@@ -16,7 +16,7 @@ Everything below is arranged so these failures are caught at the cheapest layer 
 
 | Layer | Question it answers | Why it lives here |
 |---|---|---|
-| Developer unit (Vitest) | Is the citation rule right for every input? | Pure logic: running every combination here takes milliseconds |
+| Developer unit (Vitest) | Is the citation rule right for the cases that matter? | Pure logic: the fastest place to pin the rule, including the mixed case that catches the intentional regression |
 | API (Playwright, no browser) | Does the server enforce the rule, whatever the client sends? | A disabled button can be bypassed with a `POST`. The API is the actual control, so the two invalid cases the exercise names are tested there; the other combinations are unit-tested |
 | UI (Playwright + Chromium, AI service faked in the browser) | Does the agent see the right state and only get the right actions? | Only a browser can show what is displayed and whether Approve is enabled. Combinations aren't repeated here |
 | Smoke (nothing faked in the browser) | Does the real UI → API → AI service path work? | Browser-level fakes would hide a URL or payload mismatch between UI and API |
@@ -42,7 +42,7 @@ Each important test was checked by deliberately breaking the code ("mutation pro
 | Grounding against the whole ticket instead of only cited messages | The `specific-from-uncited-message` evaluation example, reported as a false accept |
 | `eval/` importing product code | ESLint (`no-restricted-imports`) |
 
-The first row is the documented intentional regression: `npm run regression:apply`, pull request #1 and the manual **inject_regression** run all reproduce it.
+The first row is the documented intentional regression: `npm run regression:apply`, pull request #2 and the manual **inject_regression** run all reproduce it.
 
 ## Flakiness policy
 

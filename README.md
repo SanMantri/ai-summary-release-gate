@@ -7,8 +7,8 @@ Everything runs on synthetic data, with no credentials, paid services or externa
 **Evidence that the gate works** (CI runs on this repository):
 
 - ✅ [Green release gate on `main`](https://github.com/SanMantri/ai-summary-release-gate/actions/runs/44756674539). All four test jobs pass, so `release-gate` allows the release.
-- ❌ [Pull request #1: intentional regression, release blocked](https://github.com/SanMantri/ai-summary-release-gate/pull/1).
-  - [Its run](https://github.com/SanMantri/ai-summary-release-gate/actions/runs/44754667525) fails the unit, API and UI layers, each on its mixed-citation test.
+- ❌ [Pull request #2: intentional regression, release blocked](https://github.com/SanMantri/ai-summary-release-gate/pull/2).
+  - [Its run](https://github.com/SanMantri/ai-summary-release-gate/actions/runs/44757813653) fails the unit, API and UI layers, each on its mixed-citation test.
   - The evaluation stays green.
 - ❌ [Manual run with `inject_regression`](https://github.com/SanMantri/ai-summary-release-gate/actions/runs/44756522956). The same verdicts as the pull request, without needing a branch.
 
@@ -107,7 +107,7 @@ Expected result: the run stops at the unit tests. To see every layer's verdict, 
 | `npm run test:eval` | ✅ green, by design. The evaluation never imports product code, so a product bug can't make it pass or fail. |
 
 **In CI**, there are two ways:
-- Pull request [#1 "Demo: intentional regression — do not merge"](https://github.com/SanMantri/ai-summary-release-gate/pull/1). It contains the regression, and its `release-gate` check is red.
+- Pull request [#2 "Demo: intentional regression — do not merge"](https://github.com/SanMantri/ai-summary-release-gate/pull/2). It contains the regression, and its `release-gate` check is red.
 - Run the **release-gate** workflow manually (Actions → release-gate → Run workflow) with **inject_regression** ticked.
 
 ## Release-blocking criteria
@@ -134,7 +134,7 @@ Each layer proves one thing. Combinations are tested at the lowest layer that ca
 
 | Layer | Owner | Proves | Leaves to other layers |
 |---|---|---|---|
-| Developer unit (Vitest, `src/**/*.test.ts`, 44 tests) | Developer | Every combination of the citation rule; response parsing; fake AI service behaviors; the test-seeding guard; approving twice is impossible | Anything over HTTP or in a browser |
+| Developer unit (Vitest, `src/**/*.test.ts`, 11 tests) | Developer | The citation rule (valid, empty, missing, another ticket's, mixed); reading the three service responses and a missing citation list; the test-seeding endpoint stays off unless enabled | Anything over HTTP or in a browser |
 | API (`tests/api`, no browser, 6 tests) | SDET | The three summary responses at the service boundary; the **server** refuses approval for missing and cross-ticket citations | What the agent sees |
 | UI (`tests/ui`, Chromium, AI service faked in the browser, 6 tests) | SDET | What the agent sees and can click: a valid summary approved, insufficient information, 503 then retry, a retry that returns an invalid summary, missing and cross-ticket citations | That the UI and API agree |
 | Smoke (`tests/smoke`, nothing faked in the browser, 2 tests) | SDET | The real path from UI to API to the fake AI service works | Edge cases |
