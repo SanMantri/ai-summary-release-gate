@@ -124,7 +124,7 @@ A change can't be released if any of these is true:
 Every job in the workflow blocks; there are no advisory jobs. The UI runs in Chromium only. The risks the gate guards are citation and approval-state logic, which don't change between browser engines, so extra browsers would add CI time without adding protection.
 
 How the workflow enforces this:
-- **One required check.** `release-gate` is the only check that branch protection requires. It always runs, and it fails unless every blocking job *succeeded*. This closes a common hole: GitHub skips the jobs after a failed job, and a skipped required check counts as passing.
+- **One required check.** `release-gate` is the single check to mark as required in a branch ruleset on `main`, so the job list can change without touching branch protection. It always runs, and it fails unless every blocking job *succeeded*. This closes a common hole: GitHub skips the jobs after a failed job, and a skipped required check counts as passing.
 - **Flaky tests.** In CI each test gets one retry plus `failOnFlakyTests`. The retry only classifies the failure (flaky, or failing every time) and records a second trace. Every outside service is faked, so flakiness signals a real bug.
 - **No skipped tests.** The linter forbids `.only`, `test.skip` and `test.fixme`, and CI forbids `.only`. A flaky test is fixed, or deleted with an issue linked; it is never quietly switched off.
 

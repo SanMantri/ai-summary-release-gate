@@ -8,7 +8,7 @@ An agent approves an AI-written summary and then acts on it. Three failures matt
 
 1. **The wrong ticket's content gets approved.** A summary cites, and so may leak, another customer's messages.
 2. **Facts are invented.** The summary cites the right message but states a refund amount, order number or date that isn't there.
-3. **The feature lies about its state.** Approval is enabled after a failure, a stale answer appears on the wrong ticket, or a retry silently keeps an old result.
+3. **The feature lies about its state.** Approval is enabled after a failure, or a retry that returns an invalid summary still leaves Approve enabled. (A late answer landing on the wrong ticket is also guarded in the dashboard; its test is listed under the README's next steps.)
 
 Everything below is arranged so these failures are caught at the cheapest layer that can catch them, and so that a red build explains itself.
 

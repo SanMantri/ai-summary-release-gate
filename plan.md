@@ -20,7 +20,9 @@ Every phase was validated locally and by a green CI run before the next one star
 | 8 CI gate | All blocking + advisory jobs green on Linux; nightly stress (10× repeat, 6 workers) green | Firefox/WebKit advisory jobs and the nightly stress workflow were built and passed in CI, then removed on review (decisions 24–25) |
 | 9 Regression | Gate self-test verified locally and in CI (later removed, decision 27); demo PR and manual `inject_regression` run are red for the expected reasons | The self-test exposed Vitest truncating interpolated test names → `taskTitleValueFormatTruncate: 0`. The first demo-PR run showed chained jobs hiding later layers' verdicts → decision 23 |
 | 10 Documentation | README and `docs/test-strategy.md`; fresh-clone walkthrough | — |
-> GitHub repository (to be created): `ai-summary-release-gate`
+| 11 Review | Suites slimmed on review (decisions 23–31): unit 44 → 11, API 23 → 6, UI 17 → 6, smoke 2; cross-browser, nightly, quarantine and self-test jobs removed. Detection matrix re-verified on PR #2 and a manual `inject_regression` run | Counts in the phase rows above are the pre-review numbers |
+
+> GitHub repository: [`SanMantri/ai-summary-release-gate`](https://github.com/SanMantri/ai-summary-release-gate)
 
 ## Contents
 
@@ -52,7 +54,7 @@ Every phase was validated locally and by a green CI run before the next one star
 - SDET suite: API tests, UI tests (service faked at the browser boundary), full-stack smoke tests.
 - Developer-side unit tests for product logic.
 - Deterministic summary evaluation: source attribution + grounded specifics, over a labeled synthetic dataset.
-- GitHub Actions release gate with explicit blocking criteria, failure evidence, an intentional regression, and a self-test that proves the gate catches it.
+- GitHub Actions release gate with explicit blocking criteria, failure evidence, and an intentional regression shown failing in CI.
 - README and test-strategy documentation.
 
 **Out of scope (documented as "What I'd add next")**: live-model evaluation, accessibility scanning, visual regression, performance/load, authentication, persistence beyond process memory.
@@ -66,8 +68,8 @@ Every phase was validated locally and by a green CI run before the next one star
 | Local run with synthetic data, no credentials/paid services/external AI | `FakeSummaryProvider`, synthetic tickets, `npm run test:gate` (§3, §4) |
 | `200 ok` → display summary, enable approval if citations valid | UI-01, API-SUM-01, SMOKE-01 |
 | `200 insufficient_information` → state shown, approval disabled | UI-02, API-SUM-02 |
-| `503 unavailable` → error + retry; approval disabled until a retry returns a valid summary | UI-03, UI-04, API-SUM-03, API-SUM-04, SMOKE-02 |
-| Missing or cross-ticket citations stay ineligible for approval | UI-05, UI-08, API-APR-02, DEV-01 |
+| `503 unavailable` → error + retry; approval disabled until a retry returns a valid summary | UI-03, UI-04, API-SUM-03, SMOKE-02 |
+| Missing or cross-ticket citations stay ineligible for approval | UI-04, UI-05, API-APR-02, DEV-01 |
 | Summary wording can vary | No assertion depends on summary wording; eval checks are property-based (§6) |
 | Reusable fixtures | `tests/support/*` (§4.4) |
 | Safe to run in parallel | Per-test tickets, per-context route mocks, `fullyParallel` with 4 CI workers (§4.6) |
@@ -77,7 +79,7 @@ Every phase was validated locally and by a green CI run before the next one star
 | Explain what the checks establish and what to test against a live model | §6.5, §6.6, `docs/test-strategy.md` |
 | CI workflow; clear which failures block a release | `release-gate.yml`, `release-gate` aggregator job (§7) |
 | Retain enough failure evidence | Artifacts, job summary, server logs attached per test (§7.4) |
-| Document an intentional regression and observe the suite fail | `regressions/`, `npm run regression:apply`, CI input, demo PR, gate self-test (§8) |
+| Document an intentional regression and observe the suite fail | `regressions/`, `npm run regression:apply`, CI input `inject_regression`, demo PR #2 (§8) |
 | README: setup, passing and failing commands, blocking criteria, next steps | `README.md` (§9) |
 
 ---
@@ -204,7 +206,7 @@ Rules:
 
 ### 3.9 Demo data (`src/server/demo-tickets.ts`)
 
-`npm start` seeds five read-only demo tickets that walk through each state by hand: a duplicate-charge ticket (`ok`), a "Hello? Anyone there?" ticket (`insufficient_information`), a login-lockout ticket (`unavailable_then_ok`), a damaged-item ticket whose summary cites another ticket (`ok_with_foreign_citation`), and an outage ticket (`unavailable`). Tests never use demo tickets. (`approval-failed` is only reachable by faking a server error; UI-11 covers it.)
+`npm start` seeds five read-only demo tickets that walk through each state by hand: a duplicate-charge ticket (`ok`), a "Hello? Anyone there?" ticket (`insufficient_information`), a login-lockout ticket (`unavailable_then_ok`), a damaged-item ticket whose summary cites another ticket (`ok_with_foreign_citation`), and an outage ticket (`unavailable`). Tests never use demo tickets. (`approval-failed` is only reachable by faking a server error; its test was cut on review and is listed under "What I'd add next".)
 
 ---
 
@@ -214,9 +216,9 @@ Rules:
 
 | Layer | Owner | Tool / project | Proves | Leaves to other layers |
 |---|---|---|---|---|
-| Developer unit | Developer | Vitest, colocated `src/**/*.test.ts` | Every branch of the citation rule; response-contract parsing; fake provider scenarios; test-seeding guard; ticket store check-and-set | Anything over HTTP or in a browser |
-| API | SDET | Playwright `api` project, no browser | The summary endpoint's contract, error mapping and recovery; server-side approval enforcement for every invalid citation combination; status codes | What the agent sees |
-| UI | SDET | Playwright `ui-chromium`, summary service faked with `page.route` | The agent-visible state machine: what is shown, what is enabled, retries, races, timeouts, off-contract handling | That UI and API agree on URLs and payloads |
+| Developer unit | Developer | Vitest, colocated `src/**/*.test.ts` | The citation rule (valid, empty, missing, foreign, mixed); response-contract parsing; test-seeding guard | Anything over HTTP or in a browser |
+| API | SDET | Playwright `api` project, no browser | The summary endpoint's three responses and recovery; server-side approval enforcement for the two invalid-citation cases the exercise names; persisted approval | What the agent sees |
+| UI | SDET | Playwright `ui-chromium`, summary service faked with `page.route` | The agent-visible states: what is shown, what is enabled, retry after 503, a retry returning an invalid summary, citation blocking | That UI and API agree on URLs and payloads |
 | Smoke | SDET | Playwright `smoke-chromium`, nothing faked in the browser | The real path UI → API → fake provider works | Edge cases |
 | Evaluation | SDET / ML | Playwright `eval`, no browser | The deterministic checks classify each labeled example correctly | A live model's quality (§6.5) |
 
@@ -235,13 +237,13 @@ Rules:
 │  ├─ server/
 │  │  ├─ create-dashboard-server.ts             (+ create-dashboard-server.test.ts)
 │  │  ├─ start-dashboard-server.ts              entry point, reads env
-│  │  ├─ ticket-store.ts                        (+ ticket-store.test.ts)
+│  │  ├─ ticket-store.ts
 │  │  ├─ request-logging.ts
 │  │  ├─ demo-tickets.ts
 │  │  ├─ routes/  ticket-routes.ts, summary-routes.ts, approval-routes.ts, test-seeding-routes.ts
 │  │  └─ summary-provider/
 │  │     ├─ summary-provider.ts                 interface
-│  │     ├─ fake-summary-provider.ts            (+ fake-summary-provider.test.ts)
+│  │     ├─ fake-summary-provider.ts
 │  │     └─ live-summary-provider.ts            documented stub
 │  └─ dashboard-ui/
 │     ├─ index.html, styles.css, main.ts
@@ -249,23 +251,23 @@ Rules:
 │     ├─ ticket-list-view.ts, ticket-detail-view.ts
 │     └─ summary-panel.ts
 ├─ tests/
-│  ├─ api/      summary-endpoint.api.spec.ts, approval-endpoint.api.spec.ts, tickets-endpoint.api.spec.ts
+│  ├─ api/      summary-endpoint.api.spec.ts, approval-endpoint.api.spec.ts
 │  ├─ ui/       summary-generation.ui.spec.ts, summary-error-recovery.ui.spec.ts,
-│  │            summary-citation-blocking.ui.spec.ts, summary-request-timing.ui.spec.ts,
-│  │            summary-output-safety.ui.spec.ts
+│  │            summary-citation-blocking.ui.spec.ts
 │  ├─ smoke/    full-stack-summary.smoke.spec.ts
 │  └─ support/  dashboard-test-fixtures.ts, ticket-factory.ts, summary-service-mock.ts,
-│               summary-response-builders.ts, dashboard-page.ts, catalog-annotations.ts
+│               summary-response-builders.ts, dashboard-page.ts, catalog-annotations.ts,
+│               test-environment.ts
 ├─ eval/
-│  ├─ checks/   source-attribution-check.ts, grounded-specifics-check.ts, specific-extractors.ts
+│  ├─ checks/   source-attribution-check.ts, grounded-specifics-check.ts, specific-extractors.ts,
+│  │            check-result.ts, specific-extractors.eval.spec.ts
 │  ├─ dataset/  synthetic-tickets.json, summary-examples.json, summary-example-schema.ts
 │  ├─ evaluate-summary-example.ts
 │  └─ summary-evaluation.eval.spec.ts
 ├─ reporting/   release-gate-summary-reporter.ts
-├─ scripts/     verify-gate-catches-regression.ts
 ├─ regressions/ citation-rule-some-instead-of-every.patch
 ├─ .github/
-│  ├─ actions/setup-project/action.yml
+│  ├─ actions/  setup-project/action.yml, upload-evidence/action.yml
 │  └─ workflows/ release-gate.yml
 ├─ docs/test-strategy.md
 ├─ playwright.config.ts, vitest.config.ts, vite.config.ts, tsconfig.json, eslint.config.js
@@ -303,14 +305,12 @@ ticketFactory.createTicket(options?: {
 
 ```ts
 summaryServiceMock.respondWith(...responses: MockSummaryResponse[])   // strict queue, in order
-summaryServiceMock.holdNextResponse(response): HeldSummaryResponse    // .release() later; tolerant of aborted requests
-summaryServiceMock.failNextRequestWithNetworkError()
-summaryServiceMock.requests                                           // RecordedSummaryRequest[] (ticketId, timestamp)
-summaryServiceMock.requestsForTicket(ticketId)
+summaryServiceMock.requestsForTicket(ticketId)                        // RecordedSummaryRequest[] (ticketId, requestNumber)
 ```
 
-- **Strict queue:** an unexpected extra request fails the test with a clear message (`Unexpected summary request #3 for ticket t-…; no response queued`). This is how double submission is caught.
-- **Contract-checked mocks:** every queued body is validated against the Zod contract unless built with an explicit off-contract builder.
+- **Strict queue:** an unexpected extra request fails the test with a clear message instead of silently reusing a response, so an accidental extra request never goes unnoticed.
+- **Contract-checked mocks:** every queued body is validated against the dashboard's Zod contract, so the fakes cannot drift into shapes the real service never sends.
+- The fixture removes the route at teardown (`dispose`). Held responses and network-error helpers were removed with the edge-case tests that used them (decision 26).
 
 **`summaryResponses`** (`summary-response-builders.ts`)
 
@@ -320,19 +320,15 @@ summaryResponses.citing(sourceIds, summaryText?)      // 200 ok with chosen cita
 summaryResponses.withoutCitations()                   // 200 ok, sourceIds: []
 summaryResponses.insufficientInformation()            // 200
 summaryResponses.unavailable()                        // 503
-summaryResponses.offContract.serverError()            // 500
-summaryResponses.offContract.unreadableJson()         // 200, body "{not json"
-summaryResponses.withMarkupInSummary(ticket)          // 200 ok, summary contains <img onerror=…>
 ```
 
 **`dashboardPage`** (`dashboard-page.ts`) — locators and actions only; assertions stay in specs.
 
 ```ts
-openTicket(ticketId) · switchToTicket(subject) · generateSummary() · retryGeneration()
-regenerateSummary() · approveSummary()
-generateSummaryButton · retryButton · regenerateSummaryButton · approveSummaryButton
-generatingStatus · summaryText · citationLinks · citationWarning · generationErrorAlert
-insufficientInformationNotice · approvalErrorAlert · approvedNotice
+openTicket(ticketId) · generateSummary() · retryGeneration() · approveSummary()
+ticketHeading · summaryPanel · generateSummaryButton · retryButton · approveSummaryButton
+summaryText · citationLinks · citationWarning · generationErrorAlert
+insufficientInformationNotice · approvedNotice
 ```
 
 **Per-test evidence fixture (automatic).** Sets `x-test-id: <testInfo.testId>` on every page and API request. On failure, it attaches the server log lines tagged with that ID to the test as `server-log.jsonl`, next to the trace in the HTML report.
@@ -343,7 +339,7 @@ insufficientInformationNotice · approvalErrorAlert · approvedNotice
 - **Waiting:** web-first assertions only. No `waitForTimeout`, no `force: true` (ESLint-enforced).
 - **Test titles** are plain sentences describing behaviour. **Catalog IDs** (`UI-05`, `API-APR-02`, …) are attached as annotations via `catalogId('UI-05')`, so the report links back to this plan without cluttering titles.
 - **API specs** call `request.get/post` directly; helpers are used only for setup (the HTTP exchange is what is under test).
-- **No assertion on summary wording**, except where the test itself supplied the text through the mock (to check it is rendered literally).
+- **No assertion on summary wording.**
 
 ### 4.6 Parallel safety — how it is ensured and proven
 
@@ -416,7 +412,7 @@ Each check returns `{ checkName, passed, findings[] }`.
 **`grounded-specifics`** — the additional risk: *a summary can cite the right message and still invent the facts an agent acts on.*
 
 - Extracts typed specifics from the summary (`specific-extractors.ts`): money amounts, order/reference numbers, dates, email addresses, phone numbers, percentages.
-- Normalises per type: `$49`, `$49.00`, `49.00 USD` → `49.00`; `#48213`, `ORD-48213`, `order 48213` → `48213`; `March 2, 2026` and `2026-03-02` → `2026-03-02`; emails lower-cased; phone numbers digits only.
+- Normalises per type: `$49`, `$49.00`, `49.00 USD` → `USD 49.00` (currencies kept apart); `#48213`, `ORD-48213`, `order 48213` → `48213`; `March 2, 2026` and `2026-03-02` → `2026-03-02`; emails lower-cased; phone numbers digits only.
 - Every extracted specific must appear in a **cited message that belongs to the ticket**. A specific found only in an uncited message fails, because agents verify facts through citations.
 - Offline only: not added as a runtime block on approval (heuristic false-rejects would block agents). Shadow-mode production measurement is in "What I'd add next."
 - Documented blind spots: numbers written as words, relative dates ("yesterday"), facts without digits (product names, promises), meaning reversals.
@@ -555,7 +551,7 @@ Artifact retention: 14 days. Upload steps use `if: ${{ !cancelled() }}`.
 
 ### 7.6 Hardening
 
-`permissions: contents: read`; `concurrency` cancels superseded runs on the same ref; Node from `.nvmrc` (26 LTS); `npm ci`; Playwright browsers installed per job with `npx playwright install --with-deps <browser>`; only first-party `actions/*` are used (any third-party action would be pinned to a commit SHA).
+`permissions: contents: read`; `concurrency` cancels superseded pull-request runs (runs on `main` always finish); Node from `.nvmrc` (26 LTS); `npm ci`; only the job that needs a browser installs it, with `npx playwright install chromium` (decision 30); only first-party `actions/*` are used (any third-party action would be pinned to a commit SHA).
 
 ### 7.7 Making "blocks a release" literal
 
@@ -587,14 +583,14 @@ Effect: a summary citing one valid message **and** another ticket's message beco
 
 ```bash
 npm run regression:apply      # git apply regressions/citation-rule-some-instead-of-every.patch
-npm run test:gate             # red: DEV-01, API-APR-02, UI-05 fail; eval stays green
+npm run test:gate             # red: stops at DEV-01 (run test:api / test:ui / test:eval to see each layer)
 npm run regression:revert     # git apply -R …
 ```
 
 **Observe it in CI**
 
 - Run `release-gate` manually with `inject_regression: true` → red run with full evidence.
-- Standing demo pull request from `demo/intentional-regression` → `release-gate` red, merge blocked.
+- Standing demo pull request #2 from `demo/citation-rule-regression` → `release-gate` red: DEV-01, API-APR-02 and UI-05 fail; the evaluation stays green.
 
 **Gate self-test:** built, validated in CI, then removed on review (decision 27). It applied the patch and passed only if exactly DEV-01, API-APR-02 and UI-05 failed. The detection matrix above was re-verified by hand against the minimal suites.
 
@@ -627,12 +623,10 @@ npm run regression:revert     # git apply -R …
 | `npm run test:unit` | Developer unit tests (Vitest) |
 | `npm run test:api` / `test:ui` / `test:smoke` / `test:eval` | One layer each |
 | `npm run test:gate` | Every blocking check, in gate order |
-| `npm run test:advisory` | Quarantined tests |
 | `npm run regression:apply` / `regression:revert` | Intentional regression |
-| `npm run gate:self-test` | Prove the gate catches the regression |
 | `npm run report` | Open the last HTML report |
 
-**What I'd add next** (README list): live-model evaluation lane; approval by `generationId` with an audit trail; dedicated PII and prompt-injection checks; grounded-specifics in production shadow mode; accessibility scans (advisory, then blocking); consumer-driven contract tests against the real summary service; visual regression of the summary panel states; sharding with blob-report merging as the suite grows; mutation testing on the domain rules to generalise the gate self-test; production monitoring of approval/regenerate/invalid-citation rates.
+**What I'd add next** (README list): the edge-case tests cut on review (§5); a gate self-test job; live-model evaluation lane; approval by `generationId` with an audit trail; dedicated PII and prompt-injection checks; grounded-specifics in production shadow mode; accessibility scans (advisory, then blocking); consumer-driven contract tests against the real summary service; visual regression of the summary panel states; sharding with blob-report merging as the suite grows; mutation testing on the domain rules; production monitoring of approval/regenerate/invalid-citation rates.
 
 ---
 
@@ -668,7 +662,7 @@ Each phase ends with a commit (Conventional Commits) and its exit criteria met. 
 | Required checks unavailable on a private repo with the Free plan | Public at submission (§7.7) |
 | The active `GITHUB_TOKEN` credential lacks repo-creation permission | Fall back to the keyring login (`gh auth switch`) |
 | Local port collision | `DASHBOARD_PORT` configurable; `reuseExistingServer` locally |
-| Gate self-test passes for the wrong reason (e.g., build broken) | It checks that the *expected* tests failed and others still passed |
+| The intentional regression stops being caught | The demo PR and the `inject_regression` run show exactly which tests fail; a gate self-test job automating this is a next step (decision 27) |
 | Lock file drift between npm versions (occurred in the first CI run) | `devEngines` warning for npm < 11.20; `npm ci` in CI fails fast; lock file regenerated only with npm ≥ 11.20 |
 
 ---
@@ -691,8 +685,8 @@ Each phase ends with a commit (Conventional Commits) and its exit criteria met. 
 | 12 | Eval as a Playwright project, one test per example, scorecard via reporter | One runner, granular failures, reusable checks |
 | 13 | Known blind spots kept in the dataset | Turns "what deterministic checks cannot see" into data |
 | 14 | Single required `release-gate` aggregator with `if: always()` | Skipped jobs cannot open the gate |
-| 15 | Flaky = blocking; quarantine is explicit and advisory | Deterministic suite; no silent drops |
-| 16 | Regression `every → some`, applied by patch, plus a gate self-test | Realistic one-word bug; the gate itself is tested |
+| 15 | Flaky = blocking; quarantine is explicit and advisory *(quarantine superseded by 28)* | Deterministic suite; no silent drops |
+| 16 | Regression `every → some`, applied by patch, plus a gate self-test *(self-test superseded by 27)* | Realistic one-word bug; the gate itself is tested |
 | 17 | Neutral repo name; private while building, public + ruleset at submission | Privacy, plus enforceable required checks on Free |
 | 18 | Every name targeted and human-readable | Stated preference; first thing reviewers read |
 | 19 | TypeScript pinned to 6.0.x (not 7.x) | typescript-eslint 8.x supports TypeScript `<6.1`; type-aware lint rules such as `no-floating-promises` are part of the gate |
@@ -713,7 +707,7 @@ Each phase ends with a commit (Conventional Commits) and its exit criteria met. 
 
 ## 13. Interpretations confirmed before Phase 1
 
-These follow from the agreed decisions but are judgment calls. All eight were confirmed on 2026-11-20.
+These follow from the agreed decisions but are judgment calls. All eight were confirmed on 2026-11-20. Items 2, 3, 4 and 8 name tests or jobs that were later cut on review (decisions 26–27); the product behaviour in items 2 and 4 is still implemented.
 
 1. **`status: ok` with no `sourceIds` field** is treated as *on-contract but unapprovable* (shown with a "cites no messages" warning), not as an error — the exercise says summaries with missing citations "remain ineligible for approval," which implies they are displayed.
 2. **The API validates the provider's output** against the contract and returns `502 invalid_provider_response` when it is broken (adds fake scenario `malformed_output` and API-SUM-06). The UI treats it as retryable.
