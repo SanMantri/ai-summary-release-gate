@@ -15,3 +15,6 @@ release-gate-evidence/
 .env.*
 *.log
 .DS_Store
+
+# Editor swap files
+.*.swp

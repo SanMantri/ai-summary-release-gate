@@ -664,6 +664,7 @@ Each phase ends with a commit (Conventional Commits) and its exit criteria met. 
 | The active `GITHUB_TOKEN` credential lacks repo-creation permission | Fall back to the keyring login (`gh auth switch`) |
 | Local port collision | `DASHBOARD_PORT` configurable; `reuseExistingServer` locally |
 | Gate self-test passes for the wrong reason (e.g., build broken) | It checks that the *expected* tests failed and others still passed |
+| Lock file drift between npm versions (occurred in the first CI run) | `devEngines` warning for npm < 11.20; `npm ci` in CI fails fast; lock file regenerated only with npm ≥ 11.20 |
 
 ---
 
@@ -691,6 +692,8 @@ Each phase ends with a commit (Conventional Commits) and its exit criteria met. 
 | 18 | Every name targeted and human-readable | Stated preference; first thing reviewers read |
 | 19 | TypeScript pinned to 6.0.x (not 7.x) | typescript-eslint 8.x supports TypeScript `<6.1`; type-aware lint rules such as `no-floating-promises` are part of the gate |
 | 20 | Two type-check contexts: Node (`tsconfig.json`) and browser (`src/dashboard-ui/tsconfig.json`); `src/domain` is compiled in both | Domain code that accidentally uses a Node-only or DOM-only API fails type-checking |
+| 21 | Lock file maintained with npm ≥ 11.20 (`devEngines`, `onFail: warn`); `npm ci` in CI is the hard check | Older npm drops other platforms' optional dependencies from the lock file, which broke the first CI run. `onFail: error` was tried and rejected: it blocks every npm command (including `npm run`) for anyone on an older npm |
+| 22 | Install scripts of `esbuild` and `fsevents` explicitly denied (`allowScripts`) | Neither is needed (binaries come from platform packages); denying is the safer supply-chain default and makes the choice visible |
 
 ---
 
