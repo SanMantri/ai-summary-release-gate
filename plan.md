@@ -555,7 +555,7 @@ Artifact retention: 14 days. Upload steps use `if: ${{ !cancelled() }}`.
 
 ### 7.7 Making "blocks a release" literal
 
-At submission, the repository goes public (unless the brief forbids it) and a ruleset on `main` requires the `release-gate` check. The demo pull request (§8) then shows "Merging is blocked." On a paid plan, the ruleset is enabled on the private repository instead.
+Done at submission: the repository is public, and the ruleset `protect-main` on the default branch requires the `release-gate` check (and nothing else), requires a pull request, and blocks deletion and force pushes. The repository admin role is on the bypass list. The demo pull request (§8) shows "Merging is blocked". On a paid plan, the same ruleset works on a private repository.
 
 ---
 

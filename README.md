@@ -7,7 +7,7 @@ Everything runs on synthetic data, with no credentials, paid services or externa
 **Evidence that the gate works** (CI runs on this repository):
 
 - ✅ [Green release gate on `main`](https://github.com/SanMantri/ai-summary-release-gate/actions/runs/44759296549). All four test jobs pass, so `release-gate` allows the release.
-- ❌ [Pull request #2: intentional regression, release blocked](https://github.com/SanMantri/ai-summary-release-gate/pull/2).
+- ❌ [Pull request #2: intentional regression, merge blocked](https://github.com/SanMantri/ai-summary-release-gate/pull/2) by the required `release-gate` check.
   - [Its run](https://github.com/SanMantri/ai-summary-release-gate/actions/runs/44759313888) fails the unit, API and UI layers, each on its mixed-citation test.
   - The evaluation stays green.
 - ❌ [Manual run with `inject_regression`](https://github.com/SanMantri/ai-summary-release-gate/actions/runs/44756522956). The same verdicts as the pull request, without needing a branch.
@@ -107,7 +107,7 @@ Expected result: the run stops at the unit tests. To see every layer's verdict, 
 | `npm run test:eval` | ✅ green, by design. The evaluation never imports product code, so a product bug can't make it pass or fail. |
 
 **In CI**, there are two ways:
-- Pull request [#2 "Demo: intentional regression — do not merge"](https://github.com/SanMantri/ai-summary-release-gate/pull/2). It contains the regression, and its `release-gate` check is red.
+- Pull request [#2 "Demo: intentional regression — do not merge"](https://github.com/SanMantri/ai-summary-release-gate/pull/2). It contains the regression; its required `release-gate` check is red, so GitHub shows "Merging is blocked".
 - Run the **release-gate** workflow manually (Actions → release-gate → Run workflow) with **inject_regression** ticked.
 
 ## Release-blocking criteria
@@ -124,7 +124,7 @@ A change can't be released if any of these is true:
 Every job in the workflow blocks; there are no advisory jobs. The UI runs in Chromium only. The risks the gate guards are citation and approval-state logic, which don't change between browser engines, so extra browsers would add CI time without adding protection.
 
 How the workflow enforces this:
-- **One required check.** `release-gate` is the single check to mark as required in a branch ruleset on `main`, so the job list can change without touching branch protection. It always runs, and it fails unless every blocking job *succeeded*. This closes a common hole: GitHub skips the jobs after a failed job, and a skipped required check counts as passing.
+- **One required check.** A ruleset on `main` requires `release-gate` and nothing else, so the job list can change without touching branch protection. Changes reach `main` through a pull request; deletion and force pushes are blocked. `release-gate` always runs, and it fails unless every blocking job *succeeded*. This closes a common hole: GitHub skips the jobs after a failed job, and a skipped required check counts as passing.
 - **Flaky tests.** In CI each test gets one retry plus `failOnFlakyTests`. The retry only classifies the failure (flaky, or failing every time) and records a second trace. Every outside service is faked, so flakiness signals a real bug.
 - **No skipped tests.** The linter forbids `.only`, `test.skip` and `test.fixme`, and CI forbids `.only`. A flaky test is fixed, or deleted with an issue linked; it is never quietly switched off.
 
